@@ -1,0 +1,12 @@
+fileFormatVersion: 2
+<<<<<<<< HEAD:Assets/Animations/Traps/TrapChest.meta
+guid: abc57d677e5a7c44b9cd6d16cfaf6376
+========
+guid: 068879bbbafd2cc44ab9cdb81ea38790
+>>>>>>>> main:Assets/Scripts/Bomb.meta
+folderAsset: yes
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

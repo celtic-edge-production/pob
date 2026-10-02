@@ -1,0 +1,13 @@
+﻿<Solution>
+  <Project Path="com.playeveryware.eos.samples.csproj" />
+  <Project Path="NewAssembly.csproj" />
+  <Project Path="com.playeveryware.eos.samples.appleauth.editor.csproj" />
+  <Project Path="Unity.InputSystem.RebindingUI.csproj" />
+  <Project Path="com.playeveryware.eos.samples.networking.csproj" />
+  <Project Path="EditMode.csproj" />
+  <Project Path="com.playeveryware.eos.samples.oculus.csproj" />
+  <Project Path="com.playeveryware.eos.samples.steam.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="com.playeveryware.eos.samples.appleauth.csproj" />
+  <Project Path="PlayMode.csproj" />
+</Solution>

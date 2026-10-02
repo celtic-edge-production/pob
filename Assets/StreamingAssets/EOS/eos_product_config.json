@@ -1,0 +1,38 @@
+{
+  "ProductName": "PanicOnBoard",
+  "ProductId": "f626180db5014ac1ade59be60b579343",
+  "ProductVersion": "1.0",
+  "imported": true,
+  "Clients": [
+    {
+      "Value": {
+        "ClientId": "xyza7891EM797HG8MIZt4iICOg33OHG3",
+        "ClientSecret": "RMWg2JVRbXrpmJyFoh9NBIWPmOSnvIri8Mbx/Q5V6lo",
+        "EncryptionKey": "5941289A7727381E743DD0DB07B5B6443521348DA745CF7C30B89FC4A06B1601"
+      },
+      "Name": "Client"
+    }
+  ],
+  "Environments": {
+    "Deployments": [
+      {
+        "Value": {
+          "SandboxId": {
+            "Value": "6d9924c5a5564961b24a08e00f9f68e0"
+          },
+          "DeploymentId": "248337abf11d42c5b3e96a919d01a9ef"
+        },
+        "Name": "Deployment"
+      }
+    ],
+    "Sandboxes": [
+      {
+        "Value": {
+          "Value": "6d9924c5a5564961b24a08e00f9f68e0"
+        },
+        "Name": "Sandbox"
+      }
+    ]
+  },
+  "schemaVersion": "1.0"
+}

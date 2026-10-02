@@ -1,0 +1,29 @@
+{
+    "name": "NewAssembly",
+    "rootNamespace": "",
+    "references": [
+        "Unity.Netcode.Runtime",
+        "SteamNetworkingSockets Transport for Netcode for GameObjects",
+        "com.rlabrecque.steamworks.net",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem",
+        "Unity.2D.Tilemap.Extras",
+        "Unity.Mathematics",
+        "Unity.Collections",
+        "com.Epic.OnlineServices",
+        "com.playeveryware.eos",
+        "com.playeveryware.eos.samples.networking",
+        "com.playeveryware.eos.samples",
+        "com.playeveryware.eos.core",
+        "Unity.Networking.Transport"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

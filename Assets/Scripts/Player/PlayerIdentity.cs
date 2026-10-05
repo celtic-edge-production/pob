@@ -54,8 +54,7 @@ public class PlayerIdentity : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         // Server side, when the owner leaves: NGO has already moved the character to the root,
-        // but it is still owned by the leaving client, so NGO would destroy it right after this
-        // call. Hand it back to the server first, so another player can pick it again.
+        // but it is still owned by the leaving client. Decide its fate before NGO does.
         if (IsServer && !NetworkManager.ShutdownInProgress && Characters != null)
             FreeCharacterOfLeavingOwner();
 
@@ -66,6 +65,19 @@ public class PlayerIdentity : NetworkBehaviour
     {
         PlayerCharacter character = Characters.GetComponent<PlayerCharacter>();
 
+        // In a game scene, the character leaves with its player. Handing it to the server would
+        // make it owned by client 0 (the host) and corrupt the bomb and score logic. The lobby
+        // recreates every character when it reloads, so destroying it here is safe.
+        if (LobbyManager.Instance == null)
+        {
+            if (character != null && character.IsSpawned)
+                character.NetworkObject.Despawn(true);
+
+            Characters = null;
+            return;
+        }
+
+        // In the lobby, give the character back so another player can pick it.
         // Runs immediately on the server: IsPlaying = false + RemoveOwnership().
         if (character != null && character.IsSpawned)
             character.RemoveOwnerShipServerRpc();
@@ -76,7 +88,7 @@ public class PlayerIdentity : NetworkBehaviour
         // Leave DontDestroyOnLoad so the character is cleaned up with the current scene.
         SceneManager.MoveGameObjectToScene(Characters, SceneManager.GetActiveScene());
 
-        if (LobbyManager.Instance != null && Characters.TryGetComponent(out LobbyCharacter lobbyCharacter))
+        if (Characters.TryGetComponent(out LobbyCharacter lobbyCharacter))
             lobbyCharacter.ResetToOriginalPosition();
 
         Characters = null;

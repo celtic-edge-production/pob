@@ -18,6 +18,8 @@ public class BombManager : NetworkSingleton<BombManager>
     private bool firstTransfer = true;
     private bool isBackgroundMusicPlaying = false;
 
+    public bool IsRoundRunning => timerActive;
+
     private void Start()
     {
         _AudioSource = GetComponent<AudioSource>();
@@ -52,10 +54,7 @@ public class BombManager : NetworkSingleton<BombManager>
             timerText.gameObject.SetActive(true);
 
         if (countdown <= 0)
-        {
             ExplodeBombHolder();
-            StopBackgroundMusic();
-        }
     }
 
     private void UpdateBackgroundMusicSpeed()
@@ -242,17 +241,13 @@ public class BombManager : NetworkSingleton<BombManager>
                 Debug.LogWarning("TransferManager not found on player.");
         }
 
-        timerText.gameObject.SetActive(false);
-        timerActive = false;
-        firstTransfer = true;
-        bombHolderId.Value = ulong.MaxValue;
+        // StopRound() resets oldBombHolderId, read it first.
+        ulong assistId = oldBombHolderId;
 
-        DespawnActiveBombs();
+        StopRound();
 
-        if (IsServer && oldBombHolderId != ulong.MaxValue)
-            GameRoundManager.Instance.AddRoundScore(oldBombHolderId, 2, "Assist");
-
-        oldBombHolderId = ulong.MaxValue;
+        if (assistId != ulong.MaxValue)
+            GameRoundManager.Instance.AddRoundScore(assistId, 2, "Assist");
 
         GameRoundManager.Instance.CheckForRoundEnd();
     }
@@ -268,9 +263,6 @@ public class BombManager : NetworkSingleton<BombManager>
             if (networkObject != null && IsServer)
                 networkObject.Despawn();
         }
-
-        if (activeBombs.Length == 0)
-            Debug.LogWarning("No active bombs found to destroy.");
     }
 
     public static bool CanTransfer(ulong currentHolderId, ulong newHolderId, bool newHolderIsInvincible)
@@ -282,6 +274,42 @@ public class BombManager : NetworkSingleton<BombManager>
             return false;
 
         return true;
+    }
+
+    public void HandlePlayerLeft(ulong clientId)
+    {
+        // No assist points for a player who left.
+        if (oldBombHolderId == clientId)
+            oldBombHolderId = ulong.MaxValue;
+
+        if (!timerActive || bombHolderId.Value != clientId)
+            return;
+
+        // The holder left with the bomb: give it to a random alive player.
+        // The countdown keeps running (firstTransfer is false while the timer is active).
+        List<TransferManager> candidates = new();
+        foreach (var player in GameRoundManager.Instance.players)
+        {
+            if (player.IsAlive.Value && !player.IsPlayerInvincible())
+                candidates.Add(player);
+        }
+
+        bombHolderId.Value = ulong.MaxValue;
+
+        if (candidates.Count > 0)
+            AssignBombHolder(candidates[Random.Range(0, candidates.Count)].OwnerClientId);
+    }
+
+    public void StopRound()
+    {
+        timerText.gameObject.SetActive(false);
+        timerActive = false;
+        firstTransfer = true;
+        bombHolderId.Value = ulong.MaxValue;
+        oldBombHolderId = ulong.MaxValue;
+
+        DespawnActiveBombs();
+        StopBackgroundMusic();
     }
 
     public bool IsBombHolder(ulong clientId)

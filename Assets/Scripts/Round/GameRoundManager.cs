@@ -202,6 +202,8 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     private const int MAX_SCORE = 90;
     private const int ROUND_POINTS = 18;
     private Camera mainCamera;
+    private bool _isGameOver = false;
+    public bool IsGameOver => _isGameOver;
 
     [SerializeField] PhaseManager _PhaseManager;
 
@@ -329,7 +331,11 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
         var scoreDeltas = ComputeTotalScoreDeltas(PlayerRoundScores.Value);
         foreach (var kvp in scoreDeltas)
-            AddTotalScore(kvp.Key, kvp.Value);
+        {
+            // Skip players who left during the round.
+            if (players.Exists(p => p.OwnerClientId == kvp.Key))
+                AddTotalScore(kvp.Key, kvp.Value);
+        }
 
         PlayerIds.Clear();
         foreach (var player in players)
@@ -337,6 +343,56 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
             PlayerIds.Add(player.OwnerClientId);
         }
         SwitchScoreboardStateServerRpc();
+    }
+
+    public void HandlePlayerLeft(ulong clientId)
+    {
+        if (!IsServer || _isGameOver)
+            return;
+
+        // The leaving character was despawned in PlayerIdentity.OnNetworkDespawn.
+        players.RemoveAll(p => p == null || !p.IsSpawned);
+        PlayerTotalScores.Value.Remove(clientId);
+
+        if (NetworkManager.Singleton.ConnectedClientsList.Count < 2)
+        {
+            EndGameForLackOfPlayers();
+            return;
+        }
+
+        if (!BombManager.Instance.IsRoundRunning)
+            return;
+
+        if (players.Count(p => p.IsAlive.Value) <= 1)
+        {
+            BombManager.Instance.StopRound();
+            CheckForRoundEnd();
+        }
+        else
+        {
+            BombManager.Instance.HandlePlayerLeft(clientId);
+        }
+    }
+
+    private void EndGameForLackOfPlayers()
+    {
+        _isGameOver = true;
+
+        BombManager.Instance.StopRound();
+
+        foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))
+            player.Revive();
+
+        TrapPlacementManager.Instance.RemoveTrapServerRpc();
+        ShowGameMessageClientRpc("Not enough players left, back to the lobby...");
+        StartCoroutine(GoBackToLobby());
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    private void ShowGameMessageClientRpc(string message)
+    {
+        winnerText.gameObject.SetActive(true);
+        winnerText.text = message;
     }
 
     public static Dictionary<ulong, int> ComputeTotalScoreDeltas(CustomDictionary roundScores)
@@ -440,35 +496,34 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
     public IEnumerator ChangePhase()
     {
-        if (IsHost)
+        if (!IsHost || _isGameOver)
+            yield break;
+
+        yield return new WaitForSeconds(3);
+
+        // A player may have left during the wait and ended the game.
+        if (_isGameOver)
+            yield break;
+
+        DesactivateWinnerTextClientRpc();
+
+        roundCount++;
+        if (roundCount >= MAX_ROUNDS || PlayerTotalScores.Value.Values.Any(score => score >= MAX_SCORE))
         {
-            yield return new WaitForSeconds(3);
+            _isGameOver = true;
+            Debug.Log("Game over!");
 
-            //winnerText.gameObject.SetActive(false);
-            DesactivateWinnerTextClientRpc();
+            foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))
+                player.Revive();
 
-            //Debug.Log("Chaging Phase from phase 2");
-
-
-            roundCount++;
-            if (roundCount >= MAX_ROUNDS || PlayerTotalScores.Value.Values.Any(score => score >= MAX_SCORE))
-            {
-                Debug.Log("Game over!");
-                foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))
-                {
-                    player.Revive();
-                }
-                //display the winner in the winner text
-                ulong winnerUlong = PlayerTotalScores.Value.Aggregate((l, r) => l.Value > r.Value ? l : r).Key;
-                winnerText.text = $"Player {winnerUlong} is the real King of Pirates!";
-                TrapPlacementManager.Instance.RemoveTrapServerRpc();
-                StartCoroutine(GoBackToLobby());
-            }
-            else
-            {
-                _PhaseManager.SwitchGamePhaseServerRpc();
-            }
-
+            ulong winnerUlong = PlayerTotalScores.Value.Aggregate((l, r) => l.Value > r.Value ? l : r).Key;
+            winnerText.text = $"Player {winnerUlong} is the real King of Pirates!";
+            TrapPlacementManager.Instance.RemoveTrapServerRpc();
+            StartCoroutine(GoBackToLobby());
+        }
+        else
+        {
+            _PhaseManager.SwitchGamePhaseServerRpc();
         }
     }
 

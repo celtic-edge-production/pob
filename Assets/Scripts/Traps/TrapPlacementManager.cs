@@ -95,7 +95,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     private void OnNotPlacedListChangedHandler(NetworkListEvent<TrapData> changeEvent)
     {
         // Check if the is remove event and if count is 0
-        if (changeEvent.Type == NetworkListEvent<TrapData>.EventType.Remove && _notPlacedTrap.Count == 0)
+        if (changeEvent.Type == NetworkListEvent<TrapData>.EventType.Remove && _notPlacedTrap.Count == 0 && _notChoosedTrap.Count == 0)
         {
             // Change Phase Gameplay to 2
             if (_CanChangePhase.Value && IsServer)
@@ -105,6 +105,42 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
                 ChangeStatePhaseServerRpc(false);
             }
         }
+    }
+
+    public void HandlePlayerLeft(ulong clientId)
+    {
+        if (!IsServer)
+            return;
+
+        // Case 1: the player had chosen a trap but not placed it. It would block the phase forever.
+        foreach (TrapData trapData in _notPlacedTrap)
+        {
+            ATrap trap = GetTrapFromNetworkId(trapData.networkObjectId);
+
+            if (trap != null && trap.creatorId == clientId)
+            {
+                // Removing it may trigger the phase change if it was the last trap to place.
+                _notPlacedTrap.Remove(trapData);
+                trap.GetComponent<NetworkObject>().Despawn(true);
+                return;
+            }
+        }
+
+        // Case 2: the player had not chosen yet. The chest holds one trap per player, so drop a
+        // spare one, then re-run the "everyone has chosen" check he would have triggered.
+        if (_notChoosedTrap.Count > 0)
+        {
+            TrapData spare = _notChoosedTrap[_notChoosedTrap.Count - 1];
+            _notChoosedTrap.RemoveAt(_notChoosedTrap.Count - 1);
+
+            ATrap spareTrap = GetTrapFromNetworkId(spare.networkObjectId);
+            if (spareTrap != null)
+                spareTrap.GetComponent<NetworkObject>().Despawn(true);
+
+            CloseUiToSelectTrapServerRpc();
+        }
+
+        // Case 3: his trap was already placed. Nothing to do, it stays on the map.
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]

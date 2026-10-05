@@ -35,7 +35,23 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
             return;
 
         if (clientId == NetworkManager.Singleton.LocalClientId)
+        {
             Disconnect();
+            return;
+        }
+
+        // NGO has already despawned the leaving player's objects (see PlayerIdentity.OnNetworkDespawn).
+        // Only the game rules are left to update. Both managers only exist in a game scene.
+        if (GameRoundManager.Instance != null)
+        {
+            GameRoundManager.Instance.HandlePlayerLeft(clientId);
+
+            if (GameRoundManager.Instance.IsGameOver)
+                return;
+        }
+
+        if (TrapPlacementManager.Instance != null)
+            TrapPlacementManager.Instance.HandlePlayerLeft(clientId);
     }
 
     public void Disconnect()

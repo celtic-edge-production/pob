@@ -62,18 +62,4 @@ public class ScenePreview : MonoBehaviour {
     }
 
     #endregion
-
-    #region Methods - @Deprecated
-
-    /*public void Awake()
-    {
-        // -- Load Preview Scene
-        Utils.ScenePreviewLoader.LoadScenePreview(_Config.SceneName, new Vector3(100, 100, 0)); // Deprecated code....
-
-        // -- Enabled Level preview
-        _LevelConverter.gameObject.SetActive(true);
-        _LevelConverter.Convert(_Config.Texture); // Deprecated code....
-    }*/
-
-    #endregion
 }

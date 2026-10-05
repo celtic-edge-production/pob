@@ -1,134 +1,47 @@
+using System.Collections.Generic;
+using System.Linq;
 using Unity.Netcode;
 using UnityEngine;
-using System.Collections.Generic;
-using TMPro;
 
+// Server-side bomb rules: who holds the bomb, when it explodes, who can receive it.
+// The timer display and the music read ExplosionTime on every peer
+// (BombTimerDisplay, BombMusic), so no per-frame RPC is needed.
 public class BombManager : NetworkSingleton<BombManager>
 {
-    [SerializeField] private AudioClip _BackgroundMusic;
-    [SerializeField] private AudioClip _WaitingMusic;
-    private AudioSource _AudioSource;
-    public TMP_Text timerText;
+    private const double NoExplosion = -1;
 
+    [Tooltip("Base fuse in seconds, divided by (alive players - 1), plus 0 to 5 random seconds.")]
     public float bombTimer = 60f;
+
     public NetworkVariable<ulong> bombHolderId = new NetworkVariable<ulong>(ulong.MaxValue);
+
+    // Server time of the explosion, or NoExplosion between bombs. Sent once per bomb:
+    // every peer computes the remaining time locally from the synchronized server clock.
+    public NetworkVariable<double> ExplosionTime = new NetworkVariable<double>(NoExplosion);
+
     private ulong oldBombHolderId = ulong.MaxValue;
-    private float countdown = 0f;
-    private bool timerActive = false;
-    private bool firstTransfer = true;
-    private bool isBackgroundMusicPlaying = false;
 
-    public bool IsRoundRunning => timerActive;
+    public bool IsRoundRunning => ExplosionTime.Value != NoExplosion;
 
-    private void Start()
-    {
-        _AudioSource = GetComponent<AudioSource>();
-
-        timerText.gameObject.SetActive(false);
-
-        PlayMusic(_WaitingMusic, 1.0f);
-
-        if (IsServer)
-        {
-            bombHolderId.Value = ulong.MaxValue;
-            countdown = bombTimer;
-        }
-    }
+    // Seconds left before the explosion, valid on any peer. Negative when no bomb is running.
+    public float RemainingTime => IsRoundRunning && NetworkManager != null
+        ? (float)(ExplosionTime.Value - NetworkManager.ServerTime.Time)
+        : -1f;
 
     private void Update()
     {
-        if (!IsServer || !timerActive)
+        if (!IsServer || !IsRoundRunning)
             return;
 
-        if (!isBackgroundMusicPlaying)
-            PlayBackgroundMusic();
-        else
-            UpdateBackgroundMusicSpeed();
-
-        countdown -= Time.deltaTime;
-
-        if (timerText != null)
-            timerText.text = Mathf.CeilToInt(countdown).ToString();
-
-        if (countdown <= 10f && countdown > 0f)
-            timerText.gameObject.SetActive(true);
-
-        if (countdown <= 0)
+        if (NetworkManager.ServerTime.Time >= ExplosionTime.Value)
             ExplodeBombHolder();
-    }
-
-    private void UpdateBackgroundMusicSpeed()
-    {
-        if (countdown >= 10f)
-            return;
-
-        float newPitch = Mathf.Lerp(1.0f, 2.0f, (10f - countdown) / 10f);
-        UpdateMusicPitchClientRpc(newPitch);
-    }
-
-    [Rpc(SendTo.ClientsAndHost)]
-    private void UpdateMusicPitchClientRpc(float pitch)
-    {
-        if (_AudioSource != null)
-            _AudioSource.pitch = pitch;
-    }
-
-    private void PlayBackgroundMusic()
-    {
-        if (_BackgroundMusic == null)
-        {
-            Debug.LogWarning("No background music assigned.");
-            return;
-        }
-
-        isBackgroundMusicPlaying = true;
-        PlayMusicClientRpc();
-    }
-
-    [Rpc(SendTo.ClientsAndHost)]
-    private void PlayMusicClientRpc()
-    {
-        PlayMusic(_BackgroundMusic, 1.0f);
-    }
-
-    private void StopBackgroundMusic()
-    {
-        if (_BackgroundMusic == null)
-        {
-            Debug.LogWarning("No background music assigned.");
-            return;
-        }
-
-        StartWaitingMusicClientRpc();
-    }
-
-    [Rpc(SendTo.ClientsAndHost)]
-    private void StartWaitingMusicClientRpc()
-    {
-        isBackgroundMusicPlaying = false;
-        PlayMusic(_WaitingMusic, 1.0f);
-    }
-
-    private void PlayMusic(AudioClip clip, float pitch)
-    {
-        _AudioSource.clip = clip;
-        _AudioSource.loop = true;
-        _AudioSource.playOnAwake = true;
-        _AudioSource.volume = 0.5f;
-        _AudioSource.pitch = pitch;
-
-        _AudioSource.Play();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void TransferBombServerRpc(ulong newHolderId, RpcParams rpcParams = default)
     {
-        // The check here isn't "does sender match newHolderId" - that's the player
-        // RECEIVING the bomb, not the one calling. The real requirement is "does the
-        // real sender currently hold the bomb" - this also fixes the same redundant-call
-        // pattern seen elsewhere this session, since OnCollisionEnter2D (the caller, in
-        // TransferManager.cs) has no IsOwner guard and could otherwise fire from every
-        // client who locally sees the collision, not just the actual holder.
+        // Only the current holder may pass the bomb. The caller (TransferManager's collision
+        // callback) runs on every peer, so the other peers' calls are rejected here.
         if (!RpcValidation.SenderMatches(rpcParams, bombHolderId.Value))
             return;
 
@@ -149,11 +62,9 @@ public class BombManager : NetworkSingleton<BombManager>
         if (!TryReleaseCurrentHolder())
             return false;
 
-        if (firstTransfer)
-        {
-            firstTransfer = false;
-            ResetCountdown();
-        }
+        // First bomb of the round: light the fuse.
+        if (!IsRoundRunning)
+            StartCountdown();
 
         GiveBombTo(newHolder, newHolderId);
 
@@ -200,46 +111,31 @@ public class BombManager : NetworkSingleton<BombManager>
         return true;
     }
 
-    public static bool CanTransfer(ulong currentHolderId, ulong newHolderId, bool newHolderIsAlive, bool newHolderIsInvincible)
-    {
-        if (!newHolderIsAlive || newHolderIsInvincible)
-            return false;
-
-        return currentHolderId != newHolderId;
-    }
-
     private void GiveBombTo(NetworkObject newHolder, ulong newHolderId)
     {
-        PlayerCharacter newHolderPlayerController = newHolder?.GetComponentInChildren<PlayerCharacter>();
+        PlayerCharacter newHolderCharacter = newHolder != null ? newHolder.GetComponentInChildren<PlayerCharacter>() : null;
 
-        if (newHolderPlayerController != null)
-            newHolderPlayerController.hasBomb.Value = true;
+        if (newHolderCharacter != null)
+            newHolderCharacter.hasBomb.Value = true;
         else
             Debug.LogWarning("New bomb holder not found: " + newHolderId);
     }
 
-    private void ResetCountdown()
+    private void StartCountdown()
     {
-        List<TransferManager> alivePlayers = new List<TransferManager>();
-        foreach (var player in GameRoundManager.Instance.players)
-        {
-            if (player.IsAlive.Value)
-                alivePlayers.Add(player);
-        }
+        int alivePlayers = GameRoundManager.Instance.players.Count(p => p.IsAlive.Value);
+        float duration = bombTimer / MathUtils.SafeDivisor(alivePlayers) + Random.Range(0f, 5f);
 
-        int divisor = MathUtils.SafeDivisor(alivePlayers.Count);
-        countdown = bombTimer / divisor + Random.Range(0f, 5f);
-
-        timerActive = true;
+        ExplosionTime.Value = NetworkManager.ServerTime.Time + duration;
     }
 
     private void ExplodeBombHolder()
     {
         NetworkObject player = NetworkManager.Singleton.SpawnManager.GetPlayerNetworkObject(bombHolderId.Value);
 
-        if (player != null && player.gameObject != null)
+        if (player != null)
         {
-            TransferManager currentHolder = player.gameObject.GetComponentInChildren<TransferManager>();
+            TransferManager currentHolder = player.GetComponentInChildren<TransferManager>();
 
             if (currentHolder != null)
                 currentHolder.MarkAsDead();
@@ -260,26 +156,19 @@ public class BombManager : NetworkSingleton<BombManager>
 
     private void DespawnActiveBombs()
     {
-        BombProjectile[] activeBombs = FindObjectsByType<BombProjectile>(FindObjectsSortMode.None);
-
-        foreach (BombProjectile bombProjectile in activeBombs)
+        foreach (BombProjectile bombProjectile in FindObjectsByType<BombProjectile>(FindObjectsSortMode.None))
         {
-            NetworkObject networkObject = bombProjectile.GetComponent<NetworkObject>();
-
-            if (networkObject != null && IsServer)
-                networkObject.Despawn();
+            if (bombProjectile.IsSpawned)
+                bombProjectile.NetworkObject.Despawn();
         }
     }
 
-    public static bool CanTransfer(ulong currentHolderId, ulong newHolderId, bool newHolderIsInvincible)
+    public static bool CanTransfer(ulong currentHolderId, ulong newHolderId, bool newHolderIsAlive, bool newHolderIsInvincible)
     {
-        if (newHolderIsInvincible)
+        if (!newHolderIsAlive || newHolderIsInvincible)
             return false;
 
-        if (currentHolderId == newHolderId)
-            return false;
-
-        return true;
+        return currentHolderId != newHolderId;
     }
 
     public void HandlePlayerLeft(ulong clientId)
@@ -288,17 +177,14 @@ public class BombManager : NetworkSingleton<BombManager>
         if (oldBombHolderId == clientId)
             oldBombHolderId = ulong.MaxValue;
 
-        if (!timerActive || bombHolderId.Value != clientId)
+        if (!IsRoundRunning || bombHolderId.Value != clientId)
             return;
 
         // The holder left with the bomb: give it to a random alive player.
-        // The countdown keeps running (firstTransfer is false while the timer is active).
-        List<TransferManager> candidates = new();
-        foreach (var player in GameRoundManager.Instance.players)
-        {
-            if (player.IsAlive.Value && !player.IsPlayerInvincible())
-                candidates.Add(player);
-        }
+        // The fuse keeps burning (AssignBombHolder only lights it when no bomb is running).
+        List<TransferManager> candidates = GameRoundManager.Instance.players
+            .Where(p => p.IsAlive.Value && !p.IsPlayerInvincible())
+            .ToList();
 
         bombHolderId.Value = ulong.MaxValue;
 
@@ -306,16 +192,14 @@ public class BombManager : NetworkSingleton<BombManager>
             AssignBombHolder(candidates[Random.Range(0, candidates.Count)].OwnerClientId);
     }
 
+    // Server only. Clears the current bomb; the display and the music follow ExplosionTime.
     public void StopRound()
     {
-        timerText.gameObject.SetActive(false);
-        timerActive = false;
-        firstTransfer = true;
+        ExplosionTime.Value = NoExplosion;
         bombHolderId.Value = ulong.MaxValue;
         oldBombHolderId = ulong.MaxValue;
 
         DespawnActiveBombs();
-        StopBackgroundMusic();
     }
 
     public bool IsBombHolder(ulong clientId)

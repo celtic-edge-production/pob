@@ -196,11 +196,13 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     public NetworkVariable<CustomDictionary> PlayerRoundScores = new();
     public NetworkList<ulong> PlayerIds = new NetworkList<ulong>();
 
-    // The game ends after MAX_ROUNDS rounds or when a player reaches MAX_SCORE.
     private int roundCount = 0;
-    private const int MAX_ROUNDS = 25;
-    private const int MAX_SCORE = 20;
-    private const int ROUND_POINTS = 18;
+
+    [Header("Game Rules")]
+    [SerializeField] private int _maxRounds = 25;
+    [SerializeField] private int _maxScore = 90;
+    [Tooltip("Points given to each survivor of an explosion, divided by (players - 1).")]
+    [SerializeField] private int _roundPoints = 18;
     private Camera mainCamera;
     private bool _isGameOver = false;
     public bool IsGameOver => _isGameOver;
@@ -218,9 +220,10 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         PlayerTotalScores = new NetworkVariable<Dictionary<ulong, int>>(new Dictionary<ulong, int>());
     }
 
+    // Players were already revived and listed by ResetPlayers() early in phase 2
+    // (Phase2.ActivateTraps), so starting a round only needs a bomb holder.
     public void StartNewRound()
     {
-        ResetPlayers();
         SelectRandomBombHolder();
     }
 
@@ -301,7 +304,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
             if (player.IsAlive.Value)
             {
                 aliveCount++;
-                AddRoundScore(player.OwnerClientId, ROUND_POINTS / survivalDivisor, SURVIVAL_REASON);
+                AddRoundScore(player.OwnerClientId, _roundPoints / survivalDivisor, SURVIVAL_REASON);
             }
         }
 
@@ -499,7 +502,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         DesactivateWinnerTextClientRpc();
 
         roundCount++;
-        if (roundCount >= MAX_ROUNDS || PlayerTotalScores.Value.Values.Any(score => score >= MAX_SCORE))
+        if (roundCount >= _maxRounds || PlayerTotalScores.Value.Values.Any(score => score >= _maxScore))
         {
             _isGameOver = true;
             _PhaseManager.EndGame();

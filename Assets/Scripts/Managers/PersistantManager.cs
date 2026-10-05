@@ -9,15 +9,4 @@ public class PersistantManager : MonoBehaviour {
         foreach (PlayerIdentity player in players)
             DontDestroyOnLoad(player.gameObject);
     }
-
-    public void RemoveOrphanPlayers()
-    {
-        PlayerCharacter[] players = FindObjectsByType<PlayerCharacter>(FindObjectsSortMode.None);
-
-        foreach (PlayerCharacter player in players)
-        {
-            if (player.transform.parent == null)
-                Destroy(player.gameObject);
-        }
-    }
 }

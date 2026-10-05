@@ -23,12 +23,7 @@ public class PhaseManager : NetworkBehaviour
 
     private void Awake()
     {
-        // Listen for changes to the _currentPhase variable
         _currentPhase.OnValueChanged += HandlePhaseChanged;
-        PersistantManager persistantManager = Object.FindFirstObjectByType<PersistantManager>();
-
-        if (persistantManager != null)
-            persistantManager.RemoveOrphanPlayers();
     }
 
     private void Start()

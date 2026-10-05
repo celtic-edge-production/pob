@@ -65,7 +65,6 @@ public class Scoreboard : MonoBehaviour
 
     private void OnScoreboardClose()
     {
-        Debug.Log("Scoreboard closed");
         _Animator.SetBool("IsToggle", false);
 
         // Reset State of the roundScore animation

@@ -8,33 +8,21 @@ public class Phase1 : APhase
 
     private TrapChest _TrapChest;
 
-    protected override void Update()
-    {
-
-    }
-
     [Rpc(SendTo.Server)]
     public override void StartPhaseServerRpc()
     {
         //ResetCameraClientRpc();
-        //Debug.Log("Phase 1 Started");
 
         SwitchTileMapStateClientRpc(false);
 
-        // Spawn the TrapChest
         _TrapChest = Instantiate(_TrapChestPrefab).GetComponent<TrapChest>();
-        _TrapChest.transform.position = new Vector3(0, 0, 0);
+        _TrapChest.transform.position = Vector3.zero;
 
-        // Make sure it has a NetworkObject component
         NetworkObject networkObject = _TrapChest.GetComponent<NetworkObject>();
         if (networkObject != null)
-        {
-            networkObject.Spawn(); // This will spawn the object on all clients
-        }
+            networkObject.Spawn();
         else
-        {
             Debug.LogError("TrapChest Prefab must have a NetworkObject component.");
-        }
 
         SetPlayersPlaying(false);
         StartCoroutine(OpenChest());
@@ -50,18 +38,13 @@ public class Phase1 : APhase
             mainCamera.gameObject.SetActive(true);
             MainCameraController mainCameraController = mainCamera.GetComponent<MainCameraController>();
             if (mainCameraController != null)
-            {
                 mainCameraController.ResetCamera();
-            }
         }
     }
 
-    public IEnumerator OpenChest()
+    private IEnumerator OpenChest()
     {
-        //if (!IsHost) return;
         yield return new WaitForSeconds(3);
-
-        //Debug.Log("OpenChest");
         _TrapChest.OpenChest();
     }
 }

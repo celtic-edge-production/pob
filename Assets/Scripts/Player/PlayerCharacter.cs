@@ -978,18 +978,19 @@ public class PlayerCharacter : NetworkBehaviour
     [Rpc(SendTo.Server)]
     private void LaunchBombServerRpc(float chargeTimeClient)
     {
-        if (bombPrefab == null || bombSpawnPoint == null) return;
+        // The client checks hasBomb with a replicated copy that can lag behind:
+        // without this server check, two quick presses could spawn two bombs.
+        if (!hasBomb.Value || bombPrefab == null || bombSpawnPoint == null)
+            return;
+
+        hasBomb.Value = false;
 
         GameObject bomb = Instantiate(bombPrefab, bombSpawnPoint.position, Quaternion.identity);
         NetworkObject bombNetworkObject = bomb.GetComponent<NetworkObject>();
         if (bombNetworkObject != null)
-        {
             bombNetworkObject.Spawn();
-        }
 
         bomb.GetComponent<BombProjectile>().LaunchBomb(OwnerClientId, CalculateHoldDownForce(chargeTimeClient), isFacingRight ? 1 : -1);
-
-        hasBomb.Value = false;
     }
 
     private float CalculateHoldDownForce(float holdTime)

@@ -3,27 +3,26 @@ using NUnit.Framework;
 public class BombManagerTests
 {
     [Test]
+    public void CanTransfer_ToEligiblePlayer_ReturnsTrue()
+    {
+        Assert.IsTrue(BombManager.CanTransfer(currentHolderId: 1, newHolderId: 2, newHolderIsAlive: true, newHolderIsInvincible: false));
+    }
+
+    [Test]
     public void CanTransfer_ToInvinciblePlayer_ReturnsFalse()
     {
-        bool result = BombManager.CanTransfer(currentHolderId: 1, newHolderId: 2, newHolderIsInvincible: true);
-
-        Assert.IsFalse(result);
+        Assert.IsFalse(BombManager.CanTransfer(currentHolderId: 1, newHolderId: 2, newHolderIsAlive: true, newHolderIsInvincible: true));
     }
 
     [Test]
     public void CanTransfer_ToSameHolder_ReturnsFalse()
     {
-        // Player already has the bomb - shouldn't "transfer" to themselves.
-        bool result = BombManager.CanTransfer(currentHolderId: 1, newHolderId: 1, newHolderIsInvincible: false);
-
-        Assert.IsFalse(result);
+        Assert.IsFalse(BombManager.CanTransfer(currentHolderId: 1, newHolderId: 1, newHolderIsAlive: true, newHolderIsInvincible: false));
     }
 
     [Test]
-    public void CanTransfer_ToEligiblePlayer_ReturnsTrue()
+    public void CanTransfer_ToDeadPlayer_ReturnsFalse()
     {
-        bool result = BombManager.CanTransfer(currentHolderId: 1, newHolderId: 2, newHolderIsInvincible: false);
-
-        Assert.IsTrue(result);
+        Assert.IsFalse(BombManager.CanTransfer(currentHolderId: 1, newHolderId: 2, newHolderIsAlive: false, newHolderIsInvincible: false));
     }
 }

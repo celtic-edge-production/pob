@@ -275,22 +275,21 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
     private void SelectRandomBombHolder()
     {
-        List<TransferManager> alivePlayers = new List<TransferManager>();
-        foreach (var player in players)
+        List<TransferManager> alivePlayers = players.Where(p => p.IsAlive.Value).ToList();
+
+        if (alivePlayers.Count < 2)
+            return;
+
+        // The previous bomb was already cleared by BombManager.StopRound(). Try the players in a
+        // random order: the last giver may still be invincible and refuse the bomb, which used to
+        // leave the round without a bomb (and without an end).
+        foreach (TransferManager candidate in alivePlayers.OrderBy(_ => UnityEngine.Random.value))
         {
-            if (player.IsAlive.Value)
-            {
-                alivePlayers.Add(player);
-            }
+            if (BombManager.Instance.AssignBombHolder(candidate.OwnerClientId))
+                return;
         }
 
-        if (alivePlayers.Count > 1)
-        {
-            BombManager.Instance.ResetBombServerRpc();
-            int randomIndex = UnityEngine.Random.Range(0, alivePlayers.Count);
-            ulong randomPlayerId = alivePlayers[randomIndex].OwnerClientId;
-            BombManager.Instance.AssignBombHolder(randomPlayerId);
-        }
+        Debug.LogWarning("[GameRoundManager] No alive player could receive the bomb.");
     }
 
     public void CheckForRoundEnd()

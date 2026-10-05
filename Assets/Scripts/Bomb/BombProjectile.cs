@@ -46,10 +46,10 @@ public class BombProjectile : NetworkBehaviour
             if (hitPlayer != null && hitPlayer.OwnerClientId != ownerClientId)
             {
                 // Already running on the server: call the internal method directly.
-                // Going through TransferBombServerRpc would validate the host as sender and
-                // reject the transfer whenever a client threw the bomb.
-                BombManager.Instance.AssignBombHolder(hitPlayer.OwnerClientId);
-                DestroyBomb();
+                // Only consume the bomb if it really changed hands. Otherwise (dead or invincible
+                // target) it keeps flying and the thrower can pick it up again.
+                if (BombManager.Instance.AssignBombHolder(hitPlayer.OwnerClientId))
+                    DestroyBomb();
             }
             else if (hitPlayer != null && hitPlayer.OwnerClientId == ownerClientId && canBePickedUp)
             {

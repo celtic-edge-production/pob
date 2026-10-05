@@ -135,15 +135,19 @@ public class BombManager : NetworkSingleton<BombManager>
         AssignBombHolder(newHolderId);
     }
 
-    public void AssignBombHolder(ulong newHolderId)
+    // Server only. Returns true if the bomb actually changed hands.
+    public bool AssignBombHolder(ulong newHolderId)
     {
         if (!NetworkManager.Singleton.ConnectedClients.ContainsKey(newHolderId))
-            return;
+            return false;
 
         NetworkObject newHolder = NetworkManager.Singleton.SpawnManager.GetPlayerNetworkObject(newHolderId);
 
         if (!CanTransferBombTo(newHolder, newHolderId))
-            return;
+            return false;
+
+        if (!TryReleaseCurrentHolder())
+            return false;
 
         if (firstTransfer)
         {
@@ -151,55 +155,57 @@ public class BombManager : NetworkSingleton<BombManager>
             ResetCountdown();
         }
 
-        if (!TryReleaseCurrentHolder())
-            return;
-
         GiveBombTo(newHolder, newHolderId);
 
         oldBombHolderId = bombHolderId.Value;
         bombHolderId.Value = newHolderId;
+        return true;
     }
 
     private bool CanTransferBombTo(NetworkObject newHolder, ulong newHolderId)
     {
-        TransferManager transferManager = newHolder?.GetComponentInChildren<TransferManager>();
-        bool isInvincible = transferManager != null && transferManager.IsPlayerInvincible();
+        TransferManager target = newHolder != null ? newHolder.GetComponentInChildren<TransferManager>() : null;
 
-        bool canTransfer = CanTransfer(bombHolderId.Value, newHolderId, isInvincible);
+        // Checked here, on the server: the client-side checks in TransferManager are only a
+        // pre-filter, and a thrown bomb (BombProjectile) has none.
+        bool isAlive = target != null && target.IsAlive.Value;
+        bool isInvincible = target != null && target.IsPlayerInvincible();
 
-        if (!canTransfer && bombHolderId.Value == newHolderId)
-            Debug.LogWarning("Player already has the bomb!");
-
-        return canTransfer;
+        return CanTransfer(bombHolderId.Value, newHolderId, isAlive, isInvincible);
     }
 
-    // Returns false if the current holder is stunned and the transfer must be aborted.
+    // Returns false if the holder is stunned with the bomb in hand: a stunned player cannot
+    // pass it on. A bomb already thrown (hasBomb is false) can always change hands.
     private bool TryReleaseCurrentHolder()
     {
         NetworkObject currentHolder = NetworkManager.Singleton.SpawnManager.GetPlayerNetworkObject(bombHolderId.Value);
-        TransferManager currentHolderTransferManager = currentHolder?.GetComponentInChildren<TransferManager>();
-        PlayerCharacter currentHolderPlayerController = currentHolder?.GetComponentInChildren<PlayerCharacter>();
 
-        if (currentHolderPlayerController == null)
-        {
-            Debug.LogWarning("Current bomb holder player controller not found: " + bombHolderId.Value);
-            return true; // No holder to release (e.g. first transfer) - not an error.
-        }
+        // No holder yet: first bomb of the round.
+        if (currentHolder == null)
+            return true;
 
-        if (currentHolderPlayerController.isStun.Value)
-        {
-            Debug.LogWarning("Current bomb holder is stunned and cannot transfer the bomb.");
+        PlayerCharacter holderCharacter = currentHolder.GetComponentInChildren<PlayerCharacter>();
+        if (holderCharacter == null)
+            return true;
+
+        if (holderCharacter.isStun.Value && holderCharacter.hasBomb.Value)
             return false;
-        }
 
-        currentHolderPlayerController.hasBomb.Value = false;
+        holderCharacter.hasBomb.Value = false;
 
-        if (currentHolderTransferManager != null)
-            currentHolderTransferManager.OnBombTransferred();
-        else
-            Debug.LogWarning("Current bomb holder not found: " + bombHolderId.Value);
+        TransferManager holderBombState = currentHolder.GetComponentInChildren<TransferManager>();
+        if (holderBombState != null)
+            holderBombState.OnBombTransferred();
 
         return true;
+    }
+
+    public static bool CanTransfer(ulong currentHolderId, ulong newHolderId, bool newHolderIsAlive, bool newHolderIsInvincible)
+    {
+        if (!newHolderIsAlive || newHolderIsInvincible)
+            return false;
+
+        return currentHolderId != newHolderId;
     }
 
     private void GiveBombTo(NetworkObject newHolder, ulong newHolderId)
@@ -315,11 +321,5 @@ public class BombManager : NetworkSingleton<BombManager>
     public bool IsBombHolder(ulong clientId)
     {
         return bombHolderId.Value == clientId;
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void ResetBombServerRpc()
-    {
-        bombHolderId.Value = ulong.MaxValue;
     }
 }

@@ -23,7 +23,7 @@ public class Phase2 : APhase
     {
         DesactivateCameraClientRpc();
         SwitchTileMapStateClientRpc(true);
-        SwitchStatePlayersServerRpc();
+        SetPlayersPlaying(true);
         StartCoroutine(StartGameRound());
         StartCoroutine(ActivateTraps());
     }

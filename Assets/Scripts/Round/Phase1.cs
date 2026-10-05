@@ -36,7 +36,7 @@ public class Phase1 : APhase
             Debug.LogError("TrapChest Prefab must have a NetworkObject component.");
         }
 
-        SwitchStatePlayersServerRpc();
+        SetPlayersPlaying(false);
         StartCoroutine(OpenChest());
         TrapPlacementManager.Instance.UnActivateCollideStateTrapServerRpc();
     }

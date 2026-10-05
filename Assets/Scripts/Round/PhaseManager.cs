@@ -7,8 +7,6 @@ public class PhaseManager : NetworkBehaviour
     // Directly use the NetworkVariable for the current phase
     [SerializeField] private NetworkVariable<GamePhase> _currentPhase = new NetworkVariable<GamePhase>(GamePhase.Phase1);
 
-    [SerializeField] private GameObject _SpawnTileMap;
-
     [SerializeField] private Phase1 phase1;
     [SerializeField] private Phase2 phase2;
     [SerializeField] private EndPhase endGame;
@@ -54,19 +52,16 @@ public class PhaseManager : NetworkBehaviour
     [Rpc(SendTo.Server)]
     public void SwitchGamePhaseServerRpc()
     {
-        if (!IsServer) return; // Only the server should handle phase changes
+        if (!IsServer) return;
 
         if (_currentPhase.Value == GamePhase.Phase1)
         {
-            if (_Spawner != null)
-                _Spawner.ResetCharactersPosition();
-
             _currentPhase.Value = GamePhase.Phase2;
         }
         else if (_currentPhase.Value == GamePhase.Phase2)
         {
-            _SpawnTileMap.SetActive(true);
-
+            // Must run while the characters are still active (end of phase 2): Spawner only
+            // finds active characters, and they are hidden for the whole phase 1.
             if (_Spawner != null)
                 _Spawner.ResetCharactersPosition();
 

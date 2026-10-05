@@ -318,14 +318,15 @@ public class PlayerIdentity : NetworkBehaviour
             HaveCharacters.Value = false;
     }
 
+    // Phase 1 controls the cursor (trap placement), phase 2 the character.
+    // Explicit state instead of a toggle: a missed or repeated call cannot invert it.
     [Rpc(SendTo.ClientsAndHost)]
-    public void SwitchStatePlayerClientRpc()
+    public void SetPlayingClientRpc(bool playing)
     {
         RefreshInitInCaseOfBadSync();
 
-        // "Characters == null" is also true for a destroyed object. Re-resolve from the
-        // children, including inactive ones: the character is deactivated during phase 1, and
-        // GetComponentInChildren() skips inactive objects by default.
+        // Characters is only assigned on the server: re-resolve it from the children on the
+        // clients, including inactive ones (the character is hidden during phase 1).
         if (Characters == null)
         {
             PlayerCharacter child = GetComponentInChildren<PlayerCharacter>(true);
@@ -333,24 +334,16 @@ public class PlayerIdentity : NetworkBehaviour
                 Characters = child.gameObject;
         }
 
-        // TEMPORARY diagnostic (ConnectedClientsList is server-only, hence the -1 on clients).
-        Debug.Log($"[PlayerIdentity] SwitchState owner={OwnerClientId} isOwner={IsOwner} isServer={IsServer} " +
-                  $"hasCharacters={Characters != null} " +
-                  $"characterChildren={GetComponentsInChildren<PlayerCharacter>(true).Length} " +
-                  $"connected={(IsServer ? NetworkManager.Singleton.ConnectedClientsList.Count : -1)}");
-
-        // This only stops the exception - it does NOT fix the cause. If this warning appears,
-        // the real bug is whatever destroyed the character.
         if (Characters == null)
         {
-            Debug.LogWarning($"[PlayerIdentity] Player {OwnerClientId} has no live character, skipping the state switch.");
+            Debug.LogWarning($"[PlayerIdentity] Player {OwnerClientId} has no character, cannot switch control mode.");
             return;
         }
 
-        //Activate and Deactivate Cursor and Characters
-        Cursor.gameObject.SetActive(!Cursor.activeSelf);
-        Characters.SetActive(!Characters.activeSelf);
-        if (Characters.activeSelf)
+        Cursor.SetActive(!playing);
+        Characters.SetActive(playing);
+
+        if (playing)
             Characters.GetComponent<PlayerCharacter>().ActivateCamera();
     }
 

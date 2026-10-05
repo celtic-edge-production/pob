@@ -196,10 +196,10 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     public NetworkVariable<CustomDictionary> PlayerRoundScores = new();
     public NetworkList<ulong> PlayerIds = new NetworkList<ulong>();
 
-    // TEMPORARY: This is a temporary fix to stop the game after 5 rounds
+    // The game ends after MAX_ROUNDS rounds or when a player reaches MAX_SCORE.
     private int roundCount = 0;
     private const int MAX_ROUNDS = 25;
-    private const int MAX_SCORE = 90;
+    private const int MAX_SCORE = 20;
     private const int ROUND_POINTS = 18;
     private Camera mainCamera;
     private bool _isGameOver = false;
@@ -375,6 +375,18 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         }
     }
 
+    // Every player sharing the best total wins (ties are possible).
+    public static ulong[] ComputeWinnerIds(IReadOnlyDictionary<ulong, int> totals)
+    {
+        if (totals.Count == 0)
+            return Array.Empty<ulong>();
+
+        int best = totals.Values.Max();
+        return totals.Where(kv => kv.Value == best).Select(kv => kv.Key).OrderBy(id => id).ToArray();
+    }
+
+    public ulong[] GetWinnerIds() => ComputeWinnerIds(PlayerTotalScores.Value);
+
     private void EndGameForLackOfPlayers()
     {
         _isGameOver = true;
@@ -386,7 +398,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
         TrapPlacementManager.Instance.RemoveTrapServerRpc();
         ShowGameMessageClientRpc("Not enough players left, back to the lobby...");
-        StartCoroutine(GoBackToLobby());
+        StartCoroutine(ReturnToLobby(5.0f));
     }
 
     // NGO already detects in-place changes by comparing these collections with a copy on every
@@ -398,7 +410,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     }
 
     [Rpc(SendTo.ClientsAndHost)]
-    private void ShowGameMessageClientRpc(string message)
+    public void ShowGameMessageClientRpc(string message)
     {
         winnerText.gameObject.SetActive(true);
         winnerText.text = message;
@@ -490,15 +502,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         if (roundCount >= MAX_ROUNDS || PlayerTotalScores.Value.Values.Any(score => score >= MAX_SCORE))
         {
             _isGameOver = true;
-            Debug.Log("Game over!");
-
-            foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))
-                player.Revive();
-
-            ulong winnerUlong = PlayerTotalScores.Value.Aggregate((l, r) => l.Value > r.Value ? l : r).Key;
-            winnerText.text = $"Player {winnerUlong} is the real King of Pirates!";
-            TrapPlacementManager.Instance.RemoveTrapServerRpc();
-            StartCoroutine(GoBackToLobby());
+            _PhaseManager.EndGame();
         }
         else
         {
@@ -506,19 +510,10 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         }
     }
 
-    private IEnumerator GoBackToLobby()
+    public IEnumerator ReturnToLobby(float delay)
     {
-        yield return new WaitForSeconds(5);
+        yield return new WaitForSeconds(delay);
         NetworkManager.Singleton.SceneManager.LoadScene("Lobby", LoadSceneMode.Single);
-    }
-
-    [Rpc(SendTo.ClientsAndHost)]
-    private void NotifyClientsOfWinnerClientRpc(ulong winnerId)
-    {
-        // Eventuellement d�clencher des effets visuels ou audio
-        winnerText.gameObject.SetActive(true);
-        winnerText.text = $"Player {winnerId} wins the round!";
-        Debug.Log("Winner: " + winnerText.text);
     }
 
     [Rpc(SendTo.ClientsAndHost)]

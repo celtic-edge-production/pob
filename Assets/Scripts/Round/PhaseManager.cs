@@ -87,7 +87,10 @@ public class PhaseManager : NetworkBehaviour
                 phase2.StartPhaseServerRpc();
                 break;
             case GamePhase.EndPhase:
-                endGame.StartPhaseServerRpc();
+                if (endGame != null)
+                    endGame.StartPhaseServerRpc();
+                else
+                    Debug.LogError("[PhaseManager] EndPhase reference is not assigned.");
                 break;
         }
     }
@@ -96,5 +99,14 @@ public class PhaseManager : NetworkBehaviour
     {
         _currentPhase.OnValueChanged -= HandlePhaseChanged;
         base.OnDestroy();
+    }
+
+    // Server only. EndPhase is final: SwitchGamePhaseServerRpc ignores it.
+    public void EndGame()
+    {
+        if (!IsServer)
+            return;
+
+        _currentPhase.Value = GamePhase.EndPhase;
     }
 }

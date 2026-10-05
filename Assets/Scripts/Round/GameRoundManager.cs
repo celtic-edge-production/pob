@@ -204,6 +204,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     private Camera mainCamera;
     private bool _isGameOver = false;
     public bool IsGameOver => _isGameOver;
+    private const string SURVIVAL_REASON = "Survived an explosion";
 
     [SerializeField] PhaseManager _PhaseManager;
 
@@ -233,41 +234,40 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
             ulong playerId = player.OwnerClientId;
 
             if (!PlayerTotalScores.Value.ContainsKey(playerId))
-            {
                 PlayerTotalScores.Value[playerId] = 0;
-            }
 
             if (!PlayerRoundScores.Value.ContainsKey(playerId))
-            {
                 PlayerRoundScores.Value[playerId] = new();
-            }
             else
-            {
                 PlayerRoundScores.Value[playerId].Clear();
-            }
         }
+
+        // Drop the round scores of players who left. Safe here: the scoreboard is closed.
+        foreach (ulong id in PlayerRoundScores.Value.Data.Keys.ToList())
+        {
+            if (!players.Exists(p => p.OwnerClientId == id))
+                PlayerRoundScores.Value.Remove(id);
+        }
+
+        MarkScoresDirty();
     }
 
     public void AddRoundScore(ulong playerId, int score, string reason)
     {
         if (!PlayerRoundScores.Value.ContainsKey(playerId))
-        {
-            //PlayerRoundScores.Value[playerId] = new List<(int, string)>();
             PlayerRoundScores.Value[playerId] = new();
-        }
 
-        IntStringPair roundScore = new IntStringPair(score, reason);
-        PlayerRoundScores.Value[playerId].Add((roundScore));
+        PlayerRoundScores.Value[playerId].Add(new IntStringPair(score, reason));
+        MarkScoresDirty();
     }
 
     public void AddTotalScore(ulong playerId, int score)
     {
         if (!PlayerTotalScores.Value.ContainsKey(playerId))
-        {
             PlayerTotalScores.Value[playerId] = 0;
-        }
 
         PlayerTotalScores.Value[playerId] += score;
+        MarkScoresDirty();
     }
 
     private void SelectRandomBombHolder()
@@ -293,30 +293,25 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     public void CheckForRoundEnd()
     {
         int aliveCount = 0;
-        TransferManager lastAlivePlayer = null;
-
         int survivalDivisor = MathUtils.SafeDivisor(players.Count);
 
+        // Survivors score after every explosion, not only at the end of the round.
         foreach (var player in players)
         {
             if (player.IsAlive.Value)
             {
                 aliveCount++;
-                lastAlivePlayer = player;
-                AddRoundScore(player.OwnerClientId, ROUND_POINTS / survivalDivisor, "Survived the round");
+                AddRoundScore(player.OwnerClientId, ROUND_POINTS / survivalDivisor, SURVIVAL_REASON);
             }
         }
+
         if (aliveCount <= 1)
-        {
-            EndRound(lastAlivePlayer);
-        }
+            EndRound();
         else
-        {
             SelectRandomBombHolder();
-        }
     }
 
-    private void EndRound(TransferManager winner)
+    private void EndRound()
     {
         ResetCameraClientRpc();
 
@@ -324,9 +319,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         {
             PlayerCharacter playerController = player.GetComponent<PlayerCharacter>();
             if (playerController != null)
-            {
                 playerController.DesactivateCamera();
-            }
         }
 
         var scoreDeltas = ComputeTotalScoreDeltas(PlayerRoundScores.Value);
@@ -339,10 +332,17 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
         PlayerIds.Clear();
         foreach (var player in players)
-        {
             PlayerIds.Add(player.OwnerClientId);
+
+        if (_Scoreboard == null)
+        {
+            Debug.LogError("Scoreboard reference is null! Ensure it is assigned.");
+            return;
         }
-        SwitchScoreboardStateServerRpc();
+
+        // Sent with the RPC instead of being guessed from the score reasons on the clients.
+        ulong[] survivorIds = players.Where(p => p.IsAlive.Value).Select(p => p.OwnerClientId).ToArray();
+        StartCoroutine(ShowScoreboard(survivorIds));
     }
 
     public void HandlePlayerLeft(ulong clientId)
@@ -353,6 +353,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         // The leaving character was despawned in PlayerIdentity.OnNetworkDespawn.
         players.RemoveAll(p => p == null || !p.IsSpawned);
         PlayerTotalScores.Value.Remove(clientId);
+        MarkScoresDirty();
 
         if (NetworkManager.Singleton.ConnectedClientsList.Count < 2)
         {
@@ -388,6 +389,14 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         StartCoroutine(GoBackToLobby());
     }
 
+    // NGO already detects in-place changes by comparing these collections with a copy on every
+    // network tick. Calling it explicitly documents that they are replicated to the clients.
+    private void MarkScoresDirty()
+    {
+        PlayerTotalScores.CheckDirtyState();
+        PlayerRoundScores.CheckDirtyState();
+    }
+
     [Rpc(SendTo.ClientsAndHost)]
     private void ShowGameMessageClientRpc(string message)
     {
@@ -414,10 +423,8 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     [Rpc(SendTo.ClientsAndHost)]
     public void ResetCameraClientRpc()
     {
-        Debug.Log("G - Je suis là");
         if (mainCamera != null)
         {
-            Debug.Log("G- Et là");
             mainCamera.gameObject.SetActive(true);
             MainCameraController mainCameraController = mainCamera.GetComponent<MainCameraController>();
             if (mainCameraController != null)
@@ -427,71 +434,43 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         }
     }
 
-    [Rpc(SendTo.Server)]
-    private void SwitchScoreboardStateServerRpc()
+    private IEnumerator ShowScoreboard(ulong[] survivorIds)
     {
-        if (_Scoreboard == null)
-        {
-            Debug.LogError("Scoreboard reference is null! Ensure it is assigned.");
-            return;
-        }
+        // Do not shorten carelessly: the scores travel through NetworkVariables (sent on the next
+        // network tick), not through this RPC. The delay guarantees every client has the final
+        // scores before the scoreboard reads them.
+        yield return new WaitForSeconds(3);
 
-        StartCoroutine(SwitchScoreboardState());
+        ShowScoreboardClientRpc(survivorIds);
     }
 
     [Rpc(SendTo.ClientsAndHost)]
-    private void SwitchScoreboardStateClientRpc()
+    private void ShowScoreboardClientRpc(ulong[] survivorIds)
     {
-        Debug.Log("Switching to scoreboard state in client...");
-        int idx = 0;
+        PlayerIdentity[] identities = FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None);
 
-        foreach (ulong playerId in PlayerIds)
+        for (int i = 0; i < PlayerIds.Count; i++)
         {
-            // Bug corrige : "NetworkManager.Singleton.ConnectedClients" n'est accessible
-            // que sur le serveur (l'API Unity le documente explicitement, et leve une
-            // erreur sur un client normal). Comme ce ClientRpc s'execute sur TOUS les
-            // clients, cette recherche plantait systematiquement sur toute partie a
-            // plusieurs machines (invisible en test solo dans l'Editeur, ou le seul
-            // "client" est aussi l'hote). Remplace par une recherche via OwnerClientId,
-            // qui est repliquee et donc valide sur n'importe quel pair.
-            PlayerIdentity playerController = FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None)
-                .FirstOrDefault(p => p.OwnerClientId == playerId);
+            PlayerIdentity identity = identities.FirstOrDefault(p => p.OwnerClientId == PlayerIds[i]);
 
-            if (playerController == null || playerController.Characters == null)
+            if (identity == null || identity.Characters == null)
             {
-                Debug.Log("Error when trying to acces to the player instance");
-                // Bug corrige : "return;" ici arretait TOUTE la methode des le premier
-                // joueur manquant, empechant le scoreboard de s'afficher pour tout le
-                // monde. "continue;" saute seulement ce joueur et continue les autres.
+                Debug.LogWarning($"[Scoreboard] No character found for player {PlayerIds[i]}.");
                 continue;
             }
 
-            // Get Au_Player component from the player prefab
-            Sprite sprite = playerController.Characters.GetComponent<SpriteRenderer>().sprite;
+            Sprite sprite = identity.Characters.GetComponent<SpriteRenderer>().sprite;
 
-            if (sprite == null)
-            {
-                Debug.Log("Error when trying to acces to the sprite of the player gameObject");
-                continue;
-            }
-
-            _Scoreboard.PlayerImage[idx].sprite = sprite;
-
-            idx++;
+            // Same index as PlayerIds, so the image stays aligned with the score and status columns.
+            if (sprite != null)
+                _Scoreboard.PlayerImage[i].sprite = sprite;
         }
 
-        _Scoreboard.SetUpPlayerStateImages();
+        _Scoreboard.SetUpPlayerStateImages(survivorIds);
         _Scoreboard.UpdateDisplayScore();
         winnerText.gameObject.SetActive(false);
         _Scoreboard.gameObject.SetActive(true);
         _Scoreboard.SwitchScoreboardState();
-    }
-
-    private IEnumerator SwitchScoreboardState()
-    {
-        yield return new WaitForSeconds(3);
-
-        SwitchScoreboardStateClientRpc();
     }
 
     public IEnumerator ChangePhase()

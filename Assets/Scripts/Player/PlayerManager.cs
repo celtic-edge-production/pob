@@ -65,6 +65,10 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
 
     private IEnumerator DisconnectRoutine()
     {
+        // Close the matchmaking lobby too, or its code stays joinable while nobody hosts it.
+        SteamLobbySession.Leave();
+        EOSLobbySession.Leave();
+
         if (NetworkManager.Singleton != null &&
             (NetworkManager.Singleton.IsHost || NetworkManager.Singleton.IsClient))
         {

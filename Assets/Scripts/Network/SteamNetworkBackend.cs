@@ -174,6 +174,7 @@ public class SteamNetworkBackend : MonoBehaviour, INetworkBackend
 
     public void Disconnect()
     {
+        SteamLobbySession.Leave();
         if (NetworkManager.Singleton != null &&
             (NetworkManager.Singleton.IsHost || NetworkManager.Singleton.IsClient))
         {

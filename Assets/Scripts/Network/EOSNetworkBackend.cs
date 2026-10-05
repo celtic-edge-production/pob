@@ -193,8 +193,7 @@ public class EOSNetworkBackend : MonoBehaviour, INetworkBackend
 
     public void Disconnect()
     {
-        if (EOSManager.Instance != null)
-            Lobbies.LeaveLobby(null);
+        EOSLobbySession.Leave();
 
         if (Unity.Netcode.NetworkManager.Singleton != null &&
             (Unity.Netcode.NetworkManager.Singleton.IsHost || Unity.Netcode.NetworkManager.Singleton.IsClient))

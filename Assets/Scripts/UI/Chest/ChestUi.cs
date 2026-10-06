@@ -41,14 +41,12 @@ public class ChestUi : NetworkBehaviour
 
     private void CloseChest()
     {
-        GameObject trapChest = GameObject.Find("TrapChest(Clone)");
-
-        if (trapChest == null)
+        if (TrapChest.Current == null)
         {
-            Debug.LogError("TrapChest not found.");
+            Debug.LogError("[ChestUi] No chest spawned.");
             return;
         }
 
-        trapChest.GetComponent<Animator>().SetBool("Open", false);
+        TrapChest.Current.GetComponent<Animator>().SetBool("Open", false);
     }
 }

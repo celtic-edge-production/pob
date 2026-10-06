@@ -423,6 +423,38 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: -460566340810036328, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: GlobalObjectIdHash
+      value: 233664489
+      objectReference: {fileID: 0}
+    - target: {fileID: -460566340810036328, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: InScenePlacedSourceGlobalObjectIdHash
+      value: 3831928658
+      objectReference: {fileID: 0}
+    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: debug
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: _trapTileMap
+      value: 
+      objectReference: {fileID: 1621885459}
+    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: _PhaseManager
+      value: 
+      objectReference: {fileID: 2044376632}
+    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: _SpawnTileMap
+      value: 
+      objectReference: {fileID: 1403848879}
+    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: _paternTileMap
+      value: 
+      objectReference: {fileID: 1422484204}
+    - target: {fileID: 7912953175915040880, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 372411627638617825, guid: 0bebd720f9251a94da4edebce895b1df, type: 3}
       propertyPath: m_LocalPosition.x
       value: -3.23
@@ -490,30 +522,6 @@ PrefabInstance:
     - target: {fileID: 8620889365741014209, guid: 0bebd720f9251a94da4edebce895b1df, type: 3}
       propertyPath: InScenePlacedSourceGlobalObjectIdHash
       value: 1216001367
-      objectReference: {fileID: 0}
-    - target: {fileID: -460566340810036328, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: GlobalObjectIdHash
-      value: 233664489
-      objectReference: {fileID: 0}
-    - target: {fileID: -460566340810036328, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: InScenePlacedSourceGlobalObjectIdHash
-      value: 3831928658
-      objectReference: {fileID: 0}
-    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: debug
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: _PhaseManager
-      value: 
-      objectReference: {fileID: 2044376632}
-    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: _SpawnTileMap
-      value: 
-      objectReference: {fileID: 1403848879}
-    - target: {fileID: 7912953175915040880, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: m_IsActive
-      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

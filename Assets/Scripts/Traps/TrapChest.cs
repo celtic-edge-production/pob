@@ -2,158 +2,121 @@ using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
+// The chest spawned at the start of phase 1. Its animation events drive the chest UI.
 public class TrapChest : NetworkBehaviour
 {
+    // The chest currently spawned, if any (one per phase 1).
+    public static TrapChest Current { get; private set; }
+
     public GameObject Image;
 
     [SerializeField] private AudioClip _OpenSoundAudioClip;
     [SerializeField] private AudioClip _CloseSoundAudioClip;
 
     private Animator _Animator;
-    private GameObject _UiChest;
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+        Current = this;
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (Current == this)
+            Current = null;
+
+        base.OnNetworkDespawn();
+    }
 
     private void Start()
     {
         _Animator = GetComponent<Animator>();
 
-        GetChestUiFromCanvas();
+        // The chest UI lives in the level scene and starts inactive: find it by type, inactive included.
+        ChestUi chestUi = FindFirstObjectByType<ChestUi>(FindObjectsInactive.Include);
+        if (chestUi != null)
+            Image = chestUi.gameObject;
+        else
+            Debug.LogError("[TrapChest] No ChestUi found in the scene.");
 
-        // Place the chest
-        transform.localPosition = new Vector3(0, 0, 0);
-    }
-
-    private void GetChestUiFromCanvas()
-    {
-        // Find "ChestUi" gameObject in child of canvas
-        foreach (Transform child in GameObject.Find("ChestUiCanva").transform)
-        {
-            if (child.gameObject.name.Contains("ChestUi"))
-            {
-                Image = child.gameObject;
-            }
-        }
         TrapPlacementManager.Instance.HideAllPlacedTraps();
+
+        transform.localPosition = Vector3.zero;
     }
 
+    // Server only (called by Phase1).
     public void OpenChest()
     {
-        if (!IsOwner) return;
+        if (!IsServer)
+            return;
 
-        Debug.Log("OpenChest");
-
-        // Play animation open chest
         _Animator.SetBool("Open", true);
     }
 
-    /*
-     * @brief Called when the chest is opened at the end of the animation
-     */
+    // Animation event: end of the chest opening animation.
     public void OnChestOpen()
     {
-        if (!IsOwner) return;
-
-        Debug.Log("Chest Opened");
-
-        // Activate UI and Open UI
-        OpenUI();
-    }
-
-    public void OpenUI()
-    {
-        if (!IsOwner) return;
+        if (!IsServer)
+            return;
 
         Image.SetActive(true);
-        Image.GetComponent<Animator>().SetBool("IsToggle", true);
-        Image.GetComponent<Animator>().SetBool("IsOpening", true);
 
-        // Traps are spawned in the UI after the open animation
+        // The traps are spawned at the end of the UI opening animation (ChestUi.OnUIOpen).
+        Animator uiAnimator = Image.GetComponent<Animator>();
+        uiAnimator.SetBool("IsToggle", true);
+        uiAnimator.SetBool("IsOpening", true);
     }
 
-    /*
-     * @brief Called when the UI is Closed at the end of the animation
-     */
+    // Animation event: end of the UI closing animation.
     public void UiClosed()
     {
-        if (!IsOwner) return;
+        if (!IsServer)
+            return;
 
-        Debug.Log("UI Closed");
-        // TODO: Despawn Traps not used
-
-        // Play animation Close chest
         _Animator.SetBool("Open", false);
     }
 
-
+    // Animation event: end of the chest closing animation.
     public void OnChestClose()
     {
-        if (!IsOwner) return;
+        if (!IsServer)
+            return;
 
         GetComponent<SpriteRenderer>().enabled = false;
-
         ChangeCameraClientRpc();
-
-        StartCoroutine(DestroyChest());
+        StartCoroutine(DespawnAfterDelay());
     }
 
     [Rpc(SendTo.ClientsAndHost)]
-    public void ChangeCameraClientRpc()
+    private void ChangeCameraClientRpc()
     {
         Camera mainCamera = Camera.main;
-
-        if (mainCamera != null)
-        {
-            MainCameraController mainCameraController = mainCamera.GetComponent<MainCameraController>();
-            if (mainCameraController != null)
-            {
-                mainCameraController.EnlargeCamera();
-            }
-        }
+        if (mainCamera != null && mainCamera.TryGetComponent(out MainCameraController mainCameraController))
+            mainCameraController.EnlargeCamera();
     }
 
-    private IEnumerator DestroyChest()
+    private IEnumerator DespawnAfterDelay()
     {
         yield return new WaitForSeconds(1.0f);
-
-        // Meme correctif que Arrow.cs/BombTrap.cs : Despawn() plutot que Destroy()
-        // direct sur un objet reseau spawn (confirme via Phase1.cs : networkObject.Spawn()).
-        NetworkObject networkObject = GetComponent<NetworkObject>();
-
-        if (networkObject != null)
-            networkObject.Despawn(true);
-        else
-            Destroy(gameObject);
+        NetworkObject.Despawn(true);
     }
 
+    // Animation event.
+    private void OpenChestSound() => PlaySound(true);
 
-    private void CloseChestSound()
-    {
-        PlaySound(false);
-    }
-
-    private void OpenChestSound()
-    {
-        PlaySound(true);
-    }
+    // Animation event.
+    private void CloseChestSound() => PlaySound(false);
 
     private void PlaySound(bool isOpenSound)
     {
-        if (!IsHost) return;
-
-        PlaySoundClientRpc(isOpenSound, transform.position);
+        if (IsServer)
+            PlaySoundClientRpc(isOpenSound, transform.position);
     }
 
     [Rpc(SendTo.ClientsAndHost)]
     private void PlaySoundClientRpc(bool isOpenSound, Vector3 position)
     {
-        Debug.Log("PlaySoundClientRpc");
-        if (isOpenSound)
-        {
-            AudioSource.PlayClipAtPoint(_OpenSoundAudioClip, position);
-        }
-        else
-        {
-            AudioSource.PlayClipAtPoint(_CloseSoundAudioClip, position);
-        }
-
+        AudioSource.PlayClipAtPoint(isOpenSound ? _OpenSoundAudioClip : _CloseSoundAudioClip, position);
     }
 }

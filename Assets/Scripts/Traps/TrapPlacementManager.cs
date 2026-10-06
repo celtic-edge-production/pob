@@ -48,10 +48,11 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     [SerializeField] PhaseManager _PhaseManager;
     [SerializeField] private float _OffsetSpawn = 100.0f;
 
-    // Server-side record of the cells occupied by placed traps.
-    private Tilemap _trapTileMap;
-    // The zone where traps may be placed.
-    private Tilemap _paternTileMap;
+    [Header("Tilemaps")]
+    [Tooltip("Server-side record of the cells occupied by placed traps.")]
+    [SerializeField] private Tilemap _trapTileMap;
+    [Tooltip("The zone where traps may be placed.")]
+    [SerializeField] private Tilemap _paternTileMap;
     private ATrap[] _gameObjectArray;
 
     NetworkVariable<int> _lastId = new NetworkVariable<int>();
@@ -66,9 +67,26 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     protected override void OnSingletonAwake()
     {
-        _trapTileMap = GameObject.Find("Trap").GetComponent<Tilemap>();
-        _paternTileMap = GameObject.Find("Background").GetComponent<Tilemap>();
+        // Fallback for levels where the tilemaps are not assigned in the Inspector yet.
+        if (_trapTileMap == null)
+        {
+            _trapTileMap = GameObject.Find("Trap").GetComponent<Tilemap>();
+            Debug.LogWarning("[TrapPlacementManager] Assign the trap tilemap in the Inspector.");
+        }
+
+        if (_paternTileMap == null)
+        {
+            _paternTileMap = GameObject.Find("Background").GetComponent<Tilemap>();
+            Debug.LogWarning("[TrapPlacementManager] Assign the zone tilemap in the Inspector.");
+        }
+
         _gameObjectArray = Resources.LoadAll<ATrap>("Prefabs/Traps/Traps");
+    }
+
+    // Valid on every peer: clients use it to send the preview only when the hovered cell changes.
+    public Vector3Int WorldToCell(Vector3 worldPosition)
+    {
+        return _paternTileMap.WorldToCell(worldPosition);
     }
 
     private void OnEnable()
@@ -190,6 +208,10 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
             UnDrawLastTiles(trap);
 
         trap.RotateShape(position);
+        // Re-centre the preview for the new shape. If it no longer fits here, it stays put
+        // and PlaceTrap refuses it until the player moves to a cell where it fits.
+        if (trap.hasPreviewCell && IsShapeInsideZone(trap.cellPosition, trap))
+            trap.transform.position = GetPreviewPosition(trap.cellPosition, trap);
     }
 
     // The trap is placed where its preview is, never at a position sent by the client:
@@ -243,11 +265,10 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     private void CreateTrapToBeSelected()
     {
-        GameObject trapChestObject = GameObject.Find("TrapChest(Clone)");
-        if (trapChestObject == null)
+        if (TrapChest.Current == null || TrapChest.Current.Image == null)
             return;
 
-        RectTransform chestUiRect = trapChestObject.GetComponent<TrapChest>().Image.GetComponent<RectTransform>();
+        RectTransform chestUiRect = TrapChest.Current.Image.GetComponent<RectTransform>();
         if (chestUiRect == null)
             return;
 
@@ -275,15 +296,10 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         if (NetworkManager.Singleton.ConnectedClients.Count != _notPlacedTrap.Count)
             return;
 
-        GameObject trapChest = GameObject.Find("TrapChest(Clone)");
-        if (trapChest == null)
+        if (TrapChest.Current == null || TrapChest.Current.Image == null)
             return;
 
-        GameObject chestUi = trapChest.GetComponent<TrapChest>().Image;
-        if (chestUi == null)
-            return;
-
-        chestUi.GetComponent<ChestUi>().StartClosingAnimation();
+        TrapChest.Current.Image.GetComponent<ChestUi>().StartClosingAnimation();
         ShowAllPlacedTrapClientRpc();
     }
 

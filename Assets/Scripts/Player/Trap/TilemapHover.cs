@@ -1,26 +1,19 @@
 using Unity.Netcode;
 using UnityEngine;
 
+// Phase 1 cursor: follows the mouse, previews and places the player's trap.
 public class TilemapHover : NetworkBehaviour
 {
-    // TODO: create this class when player spawn and assign it to the player
-
     public Vector3 _worldPosition;
-    private Vector3 _screenPosition;
-
-    private ulong _playerId;
 
     public NetworkVariable<bool> isSettingTrap = new NetworkVariable<bool>();
     public NetworkVariable<bool> canPlaceTrap = new NetworkVariable<bool>();
 
     private InputReader _Input;
 
-    public void OnEnable()
-    {
-        if (!IsOwner) return;
-
-        _playerId = NetworkManager.Singleton.LocalClientId;
-    }
+    // Last cell sent to the server: the preview only needs an update when it changes.
+    private Vector3Int _lastSentCell;
+    private bool _hasSentCell;
 
     public void OnDisable()
     {
@@ -33,14 +26,16 @@ public class TilemapHover : NetworkBehaviour
 
     public void Init()
     {
-        if (IsOwner) {
-            if (transform.parent && transform.parent.TryGetComponent(out PlayerIdentity player)) {
-                _Input = player.Input;
+        if (!IsOwner)
+            return;
 
-                _Input.RotateLeftEvent   += OnRotateLeft;
-                _Input.RotateRightEvent  += OnRotateRight;
-                _Input.MouseAction1Event += OnMouseAction1;
-            }
+        if (transform.parent && transform.parent.TryGetComponent(out PlayerIdentity player))
+        {
+            _Input = player.Input;
+
+            _Input.RotateLeftEvent += OnRotateLeft;
+            _Input.RotateRightEvent += OnRotateRight;
+            _Input.MouseAction1Event += OnMouseAction1;
         }
     }
 
@@ -52,38 +47,48 @@ public class TilemapHover : NetworkBehaviour
         canPlaceTrap.Value = false;
     }
 
-    void Update()
+    private void Update()
     {
-        if (!IsOwner || TrapPlacementManager.Instance == null) return;
+        if (!IsOwner || TrapPlacementManager.Instance == null)
+            return;
 
-        GetMousePosition();
+        _worldPosition = TrapUtils.GetMousePosition();
+        transform.position = _worldPosition;
 
-        _playerId = NetworkManager.Singleton.LocalClientId;
+        SendPreviewCellIfChanged();
+    }
 
-        TrapPlacementManager.Instance.CheckMouseOnTileServerRpc(_worldPosition, _playerId);
+    private void SendPreviewCellIfChanged()
+    {
+        // The server ignores the position while this player has no trap to place.
+        if (!isSettingTrap.Value)
+        {
+            _hasSentCell = false;
+            return;
+        }
+
+        Vector3Int cell = TrapPlacementManager.Instance.WorldToCell(_worldPosition);
+        if (_hasSentCell && cell == _lastSentCell)
+            return;
+
+        _lastSentCell = cell;
+        _hasSentCell = true;
+        TrapPlacementManager.Instance.CheckMouseOnTileServerRpc(_worldPosition, OwnerClientId);
     }
 
     private void OnMouseAction1()
     {
         if (canPlaceTrap.Value && isSettingTrap.Value)
-            TrapPlacementManager.Instance.OnPlayerPlaceTrapServerRpc(_playerId, NetworkObjectId);
+            TrapPlacementManager.Instance.OnPlayerPlaceTrapServerRpc(OwnerClientId, NetworkObjectId);
     }
 
-    private void OnRotateLeft()
+    private void OnRotateLeft() => Rotate(1);
+
+    private void OnRotateRight() => Rotate(-1);
+
+    private void Rotate(int direction)
     {
         if (canPlaceTrap.Value)
-            TrapPlacementManager.Instance.OnPlayerRotateTrapServerRpc(1, _playerId);
-    }
-
-    private void OnRotateRight()
-    {
-        if (canPlaceTrap.Value)
-            TrapPlacementManager.Instance.OnPlayerRotateTrapServerRpc(-1, _playerId);
-    }
-
-    private void GetMousePosition()
-    {
-        _worldPosition = TrapUtils.GetMousePosition();
-        transform.position = _worldPosition;
+            TrapPlacementManager.Instance.OnPlayerRotateTrapServerRpc(direction, OwnerClientId);
     }
 }

@@ -94,48 +94,17 @@ public abstract class ATrap : NetworkBehaviour
             return;
         }
 
-        if (needToBeSelected.Value)
+        if (needToBeSelected.Value
+            && _boxColliderOverMouse.OverlapPoint(_mousePosition)
+            && Input.GetMouseButtonDown(0))
         {
-            // Detect if the mouse is over the trap and if the player clicked on it
-            if (_boxColliderOverMouse.OverlapPoint(_mousePosition) && Input.GetMouseButtonDown(0))
-            {
-                Debug.Log("Trap selected by a player");
+            PlayerIdentity localPlayer = PlayerIdentity.LocalPlayer;
+            if (localPlayer == null || localPlayer.Cursor == null)
+                return;
 
-                // Bug corrige : "ConnectedClients" n'est accessible que sur le serveur.
-                // Cette methode Update() tourne sur TOUS les pairs sans aucune garde
-                // IsHost/IsServer - la selection de piege au clic plantait donc
-                // systematiquement pour tout client non-hote. GetLocalPlayerObject()
-                // est l'equivalent officiellement documente, valide cote client.
-                var playerObject = NetworkManager.Singleton.SpawnManager.GetLocalPlayerObject();
-
-                if (playerObject == null)
-                    return;
-
-                ulong playerId = playerObject.OwnerClientId;
-
-                // Get Cursor GameObject in child of player prefab
-                GameObject cursorGameObject = playerObject.transform.Find("Cursor(Clone)").gameObject;
-
-                if (cursorGameObject != null)
-                {
-                    Debug.Log("Cursor found, OnPlayerSelectedATrapServerRpc calling...");
-                    ulong networkId = cursorGameObject.GetComponent<NetworkObject>().NetworkObjectId;
-                    TrapPlacementManager.Instance.OnPlayerSelectedATrapServerRpc(trapId.Value, playerId, networkId);
-                }
-            }
+            ulong cursorId = localPlayer.Cursor.GetComponent<NetworkObject>().NetworkObjectId;
+            TrapPlacementManager.Instance.OnPlayerSelectedATrapServerRpc(trapId.Value, localPlayer.OwnerClientId, cursorId);
         }
-        //else
-        //{
-        //    // Detect if the mouse is over the BoxCollider2D
-        //    if (_boxColliderOverMouse.OverlapPoint(_mousePosition))
-        //    {
-        //        _state |= TrapState.Animate;
-        //    }
-        //    else
-        //    {
-        //        _state &= ~TrapState.Animate;
-        //    }
-        //}
     }
 
     virtual protected void FixedUpdate()

@@ -1,56 +1,17 @@
-using Unity.Netcode;
 using UnityEngine;
 
-public class Shuriken: ATrap
+public class Shuriken : ATrap
 {
-    [SerializeField] private AudioClip _AudioClip;
-
-    override protected void Awake()
+    protected override void Awake()
     {
         base.Awake();
-        matrix = new int[,] {
-            { 1 },
-        };
+        matrix = new int[,] { { 1 } };
     }
 
-    override protected void FixedUpdate()
-    {
-        bool isCollideActive = (_state & TrapState.Collide) == TrapState.Collide;
-
-        if (isCollideActive)
-        {
-            HandleShurikenBehaviour();
-        }
-    }
-
-    private void HandleShurikenBehaviour()
-    {
-        return;
-    }
-
+    // The effect on the player is handled by PlayerCharacter; the trap only plays its sound.
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        if (!IsHost) return;
-
-        bool isCollideActive = (_state & TrapState.Collide) == TrapState.Collide;
-
-        if (!isCollideActive) return;
-
-        if (collision.gameObject.CompareTag("Player"))
-        {
-            PlaySoundServerRpc();
-        }
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    private void PlaySoundServerRpc()
-    {
-        PlaySoundClientRpc(transform.position);
-    }
-
-    [Rpc(SendTo.ClientsAndHost)]
-    private void PlaySoundClientRpc(Vector3 position)
-    {
-        AudioSource.PlayClipAtPoint(_AudioClip, position);
+        if (IsServer && IsActive && collision.CompareTag("Player"))
+            PlayActionSound();
     }
 }

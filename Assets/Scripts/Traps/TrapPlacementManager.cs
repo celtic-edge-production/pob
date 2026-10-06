@@ -1,11 +1,15 @@
 using System;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
+// Server-side trap flow of phase 1: the chest offers one trap per player, each player picks
+// one, previews it inside the allowed zone, then places it. Also hides, activates and
+// despawns the placed traps for the other phases.
 public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 {
-    [System.Serializable]
+    [Serializable]
     public struct TrapData : INetworkSerializable, IEquatable<TrapData>
     {
         public int trapId;
@@ -17,29 +21,25 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
             this.networkObjectId = networkObjectId;
         }
 
-        // Serialization for sending data over the network
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
             serializer.SerializeValue(ref trapId);
             serializer.SerializeValue(ref networkObjectId);
         }
 
-        // Implement IEquatable<TrapData>
         public bool Equals(TrapData other)
         {
             return trapId == other.trapId && networkObjectId == other.networkObjectId;
         }
 
-        // Override GetHashCode for consistency with Equals
-        public override int GetHashCode()
-        {
-            return HashCode.Combine(trapId, networkObjectId);
-        }
-
-        // Optional: Override Equals(Object) for general equality checks
         public override bool Equals(object obj)
         {
             return obj is TrapData other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(trapId, networkObjectId);
         }
     }
 
@@ -48,7 +48,9 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     [SerializeField] PhaseManager _PhaseManager;
     [SerializeField] private float _OffsetSpawn = 100.0f;
 
+    // Server-side record of the cells occupied by placed traps.
     private Tilemap _trapTileMap;
+    // The zone where traps may be placed.
     private Tilemap _paternTileMap;
     private ATrap[] _gameObjectArray;
 
@@ -59,51 +61,240 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     private NetworkVariable<bool> _CanChangePhase = new();
 
-    // Event for callbacks
-    public event System.Action OnTrapPlaced;
-    public event System.Action OnTrapRemoved;
+    public event Action OnTrapPlaced;
+    public event Action OnTrapRemoved;
 
     protected override void OnSingletonAwake()
     {
         _trapTileMap = GameObject.Find("Trap").GetComponent<Tilemap>();
         _paternTileMap = GameObject.Find("Background").GetComponent<Tilemap>();
-        LoadAllPrefab();
+        _gameObjectArray = Resources.LoadAll<ATrap>("Prefabs/Traps/Traps");
     }
 
     private void OnEnable()
     {
-        if (_notPlacedTrap == null) return;
-
-        _notPlacedTrap.OnListChanged += OnNotPlacedListChangedHandler;
+        if (_notPlacedTrap != null)
+            _notPlacedTrap.OnListChanged += OnNotPlacedListChangedHandler;
     }
 
     private void OnDisable()
     {
-        if (_notPlacedTrap == null) return;
-
-        _notPlacedTrap.OnListChanged -= OnNotPlacedListChangedHandler;
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    private void ChangeStatePhaseServerRpc(bool newState)
-    {
-        if (!IsOwner) return;
-
-        _CanChangePhase.Value = newState;
+        if (_notPlacedTrap != null)
+            _notPlacedTrap.OnListChanged -= OnNotPlacedListChangedHandler;
     }
 
     private void OnNotPlacedListChangedHandler(NetworkListEvent<TrapData> changeEvent)
     {
-        // Check if the is remove event and if count is 0
-        if (changeEvent.Type == NetworkListEvent<TrapData>.EventType.Remove && _notPlacedTrap.Count == 0 && _notChoosedTrap.Count == 0)
+        if (!IsServer || !_CanChangePhase.Value)
+            return;
+
+        // Every chest trap has been chosen and every chosen trap has been placed.
+        if (changeEvent.Type == NetworkListEvent<TrapData>.EventType.Remove &&
+            _notPlacedTrap.Count == 0 && _notChoosedTrap.Count == 0)
         {
-            // Change Phase Gameplay to 2
-            if (_CanChangePhase.Value && IsServer)
+            _CanChangePhase.Value = false;
+            _PhaseManager.SwitchGamePhaseServerRpc();
+        }
+    }
+
+    #region Player actions (RPCs from the clients, sender validated)
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    public void OnPlayerSelectedATrapServerRpc(int trapId, ulong playerId, ulong cursordId, RpcParams rpcParams = default)
+    {
+        if (!RpcValidation.SenderMatches(rpcParams, playerId))
+            return;
+
+        NetworkObject cursor = GetNetworkObjectById(cursordId);
+        if (cursor == null || cursor.OwnerClientId != playerId)
+            return;
+
+        // One trap per player.
+        if (GetNotPlacedTrapByPlayerId(playerId) != null)
+            return;
+
+        ATrap trap = null;
+        foreach (TrapData trapData in _notChoosedTrap)
+        {
+            ATrap candidate = GetTrapFromNetworkId(trapData.networkObjectId);
+            if (candidate != null && candidate.trapId.Value == trapId)
             {
-                Debug.Log("OnNotPlacedListChangedHandler - All traps placed, changing phase to 2");
-                ChangePhaseGameplayServerRpc();
-                ChangeStatePhaseServerRpc(false);
+                trap = candidate;
+                break;
             }
+        }
+
+        if (trap == null)
+            return;
+
+        trap.creatorId = playerId;
+        trap.needToBeSelected.Value = false;
+
+        _notPlacedTrap.Add(new TrapData(trap.trapId.Value, trap.NetworkObjectId));
+
+        foreach (TrapData trapData in _notChoosedTrap)
+        {
+            if (trapData.trapId == trapId)
+            {
+                _notChoosedTrap.Remove(trapData);
+                break;
+            }
+        }
+
+        TilemapHover hover = cursor.GetComponent<TilemapHover>();
+        hover.isSettingTrap.Value = true;
+        hover.canPlaceTrap.Value = true;
+
+        CloseChestIfEveryoneChose();
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    public void CheckMouseOnTileServerRpc(Vector3 worldPosition, ulong playerId, RpcParams rpcParams = default)
+    {
+        if (!RpcValidation.SenderMatches(rpcParams, playerId))
+            return;
+
+        ATrap trap = GetNotPlacedTrapByPlayerId(playerId);
+        if (trap == null || trap.needToBeSelected.Value)
+            return;
+
+        Vector3Int cellPosition = _paternTileMap.WorldToCell(worldPosition);
+
+        // The preview only follows the mouse where the whole shape fits in the allowed zone.
+        if (!IsShapeInsideZone(cellPosition, trap))
+            return;
+
+        if (trap.hasPreviewCell && trap.cellPosition == cellPosition)
+            return;
+
+        if (debug)
+            UnDrawLastTiles(trap);
+
+        trap.cellPosition = cellPosition;
+        trap.hasPreviewCell = true;
+        DrawShapeOfTrap(cellPosition, trap);
+        trap.transform.position = GetPreviewPosition(cellPosition, trap);
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    public void OnPlayerRotateTrapServerRpc(int position, ulong playerId, RpcParams rpcParams = default)
+    {
+        if (!RpcValidation.SenderMatches(rpcParams, playerId))
+            return;
+
+        ATrap trap = GetNotPlacedTrapByPlayerId(playerId);
+        if (trap == null)
+            return;
+
+        if (debug)
+            UnDrawLastTiles(trap);
+
+        trap.RotateShape(position);
+    }
+
+    // The trap is placed where its preview is, never at a position sent by the client:
+    // that position could be outside the allowed zone or away from the visible trap.
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    public void OnPlayerPlaceTrapServerRpc(ulong playerId, ulong cursorId, RpcParams rpcParams = default)
+    {
+        if (!RpcValidation.SenderMatches(rpcParams, playerId))
+            return;
+
+        ATrap trap = GetNotPlacedTrapByPlayerId(playerId);
+        if (trap == null || !trap.isSetable.Value)
+            return;
+
+        if (!PlaceTrap(trap))
+            return;
+
+        NetworkObject cursor = GetNetworkObjectById(cursorId);
+        if (cursor != null && cursor.OwnerClientId == playerId)
+            cursor.GetComponent<TilemapHover>().isSettingTrap.Value = false;
+
+        // May switch to phase 2 if it was the last trap to place.
+        foreach (TrapData trapData in _notPlacedTrap)
+        {
+            if (trapData.trapId == trap.trapId.Value)
+            {
+                _notPlacedTrap.Remove(trapData);
+                break;
+            }
+        }
+
+        OnTrapPlaced?.Invoke();
+    }
+
+    #endregion
+
+    #region Chest flow (server only)
+
+    // Called when the chest UI has opened: one trap per connected player.
+    public void CreateTrapsForSelection()
+    {
+        if (!IsServer)
+            return;
+
+        int numberOfPlayers = NetworkManager.Singleton.ConnectedClients.Count;
+        for (int i = 0; i < numberOfPlayers; i++)
+            CreateTrapToBeSelected();
+
+        _CanChangePhase.Value = true;
+    }
+
+    private void CreateTrapToBeSelected()
+    {
+        GameObject trapChestObject = GameObject.Find("TrapChest(Clone)");
+        if (trapChestObject == null)
+            return;
+
+        RectTransform chestUiRect = trapChestObject.GetComponent<TrapChest>().Image.GetComponent<RectTransform>();
+        if (chestUiRect == null)
+            return;
+
+        float halfWidth = chestUiRect.rect.width / 2;
+        float halfHeight = chestUiRect.rect.height / 2;
+        float spawnWidth = halfWidth - _OffsetSpawn < 0 ? halfWidth : halfWidth - _OffsetSpawn;
+        float spawnHeight = halfHeight - _OffsetSpawn < 0 ? halfHeight : halfHeight - _OffsetSpawn;
+
+        ATrap trap = Instantiate(_gameObjectArray[UnityEngine.Random.Range(0, _gameObjectArray.Length)]);
+        trap.transform.position = new Vector3(
+            UnityEngine.Random.Range(-spawnWidth, spawnWidth) / 100.0f,
+            0,
+            UnityEngine.Random.Range(-spawnHeight, spawnHeight) / 100.0f);
+
+        trap.NetworkObject.Spawn();
+        trap.creatorId = 0;
+        trap.trapId.Value = _lastId.Value;
+
+        _notChoosedTrap.Add(new TrapData(trap.trapId.Value, trap.NetworkObjectId));
+        _lastId.Value++;
+    }
+
+    private void CloseChestIfEveryoneChose()
+    {
+        if (NetworkManager.Singleton.ConnectedClients.Count != _notPlacedTrap.Count)
+            return;
+
+        GameObject trapChest = GameObject.Find("TrapChest(Clone)");
+        if (trapChest == null)
+            return;
+
+        GameObject chestUi = trapChest.GetComponent<TrapChest>().Image;
+        if (chestUi == null)
+            return;
+
+        chestUi.GetComponent<ChestUi>().StartClosingAnimation();
+        ShowAllPlacedTrapClientRpc();
+    }
+
+    // Called when the chest UI has closed: the chosen traps can now be placed.
+    public void ToggleSelectedTrap()
+    {
+        foreach (TrapData trapData in _notPlacedTrap)
+        {
+            ATrap trap = GetTrapFromNetworkId(trapData.networkObjectId);
+            if (trap != null)
+                trap.isSetable.Value = true;
         }
     }
 
@@ -121,7 +312,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
             {
                 // Removing it may trigger the phase change if it was the last trap to place.
                 _notPlacedTrap.Remove(trapData);
-                trap.GetComponent<NetworkObject>().Despawn(true);
+                trap.NetworkObject.Despawn(true);
                 return;
             }
         }
@@ -135,119 +326,99 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
             ATrap spareTrap = GetTrapFromNetworkId(spare.networkObjectId);
             if (spareTrap != null)
-                spareTrap.GetComponent<NetworkObject>().Despawn(true);
+                spareTrap.NetworkObject.Despawn(true);
 
-            CloseUiToSelectTrapServerRpc();
+            CloseChestIfEveryoneChose();
         }
 
         // Case 3: his trap was already placed. Nothing to do, it stays on the map.
     }
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    private void ChangePhaseGameplayServerRpc()
+    #endregion
+
+    #region Grid
+
+    private static IEnumerable<Vector3Int> GetShapeCells(Vector3Int origin, ATrap trap)
     {
-        if (!IsServer) return;
-
-        _PhaseManager.SwitchGamePhaseServerRpc();
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    private void CloseUiToSelectTrapServerRpc()
-    {
-        Debug.Log("CloseUiToSelectTrap Called - (nbrPlayer: " + NetworkManager.Singleton.ConnectedClients.Count + ", nbr Trap: " + _notPlacedTrap.Count);
-
-        if (NetworkManager.Singleton.ConnectedClients.Count == _notPlacedTrap.Count)
+        for (int i = 0; i < trap.matrix.GetLength(0); i++)
         {
-            // find the trap chest
-            GameObject trapChest = GameObject.Find("TrapChest(Clone)");
-
-            if (trapChest != null)
+            for (int j = 0; j < trap.matrix.GetLength(1); j++)
             {
-                // Get chestUi from child of the trapChest
-                GameObject chestUi = trapChest.GetComponent<TrapChest>().Image;
-                if (chestUi != null)
-                {
-                    chestUi.GetComponent<ChestUi>().StartClosingAnimationServerRpc();
-                    ShowAllPlacedTrapClientRpc();
-                }
+                if (trap.matrix[i, j] == 1)
+                    yield return new Vector3Int(origin.x + j, origin.y - i, 0);
             }
         }
     }
 
-    public void ToggleSelectedTrap()
+    private bool IsShapeInsideZone(Vector3Int origin, ATrap trap)
     {
-        foreach (TrapData trapData in _notPlacedTrap)
+        foreach (Vector3Int cell in GetShapeCells(origin, trap))
         {
-            ATrap tempTrap = GetTrapFromNetworkId(trapData.networkObjectId);
-
-            tempTrap.isSetable.Value = true;
+            if (!_paternTileMap.HasTile(cell))
+                return false;
         }
+        return true;
     }
 
-    private bool AreAllNetworkVariablesInitialized()
+    private bool IsAreaFreeOfTraps(Vector3Int origin, ATrap trap)
     {
-        // Check if all lists in the network variables are initialized (i.e., not null)
-        return _placedTrap != null && _notPlacedTrap != null && _notChoosedTrap != null;
-    }
-
-    private void LoadAllPrefab()
-    {
-        _gameObjectArray = Resources.LoadAll<ATrap>("Prefabs/Traps/Traps");
-    }
-
-    private NetworkObject GetNetworkObjectById(ulong networkObjectId)
-    {
-        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(networkObjectId, out var networkObject))
+        foreach (Vector3Int cell in GetShapeCells(origin, trap))
         {
-            return networkObject;
+            if (_trapTileMap.HasTile(cell))
+                return false;
         }
-        else
-        {
-            return null;
-        }
+        return true;
     }
 
-    private ATrap GetTrapFromNetworkId(ulong networkObjectId)
+    private bool PlaceTrap(ATrap trap)
     {
-        NetworkObject networkObject = GetNetworkObjectById(networkObjectId);
+        if (!trap.hasPreviewCell || trap.isPlaced.Value)
+            return false;
 
-        if (networkObject == null)
+        Vector3Int origin = trap.cellPosition;
+
+        // Re-checked here: a rotation since the last preview may have changed the shape.
+        if (!IsShapeInsideZone(origin, trap))
+            return false;
+
+        if (trap.isBombTrap)
         {
-            return null;
+            ((BombTrap)trap).ExplodeBomb(origin);
+            return true;
         }
 
-        return networkObject.GetComponent<ATrap>();
+        if (!IsAreaFreeOfTraps(origin, trap))
+            return false;
+
+        TrapTile trapTile = ScriptableObject.CreateInstance<TrapTile>();
+        trapTile.trapPrefab = trap;
+        trapTile.id = trap.trapId.Value;
+
+        if (debug)
+            trapTile.sprite = _sprite;
+
+        foreach (Vector3Int cell in GetShapeCells(origin, trap))
+            _trapTileMap.SetTile(cell, trapTile);
+
+        if (debug)
+            UnDrawLastTiles(trap);
+
+        trap.isPlaced.Value = true;
+        _placedTrap.Add(new TrapData(trap.trapId.Value, trap.NetworkObjectId));
+        return true;
     }
 
-    public void RemoveTrap(Vector3 worldPosition)
+    // Server only. Removes the placed trap covering this cell (used by the bomb trap).
+    public void RemoveTrapAt(Vector3Int cellPosition)
     {
-        if (!IsHost) return;
-
-        // Initial Pose of the trap
-        Vector3Int cellPosition = _trapTileMap.WorldToCell(worldPosition);
-
-        // Get the first tile at the position
-        TileBase tile = _trapTileMap.GetTile(cellPosition);
-        
-        if (tile is not TrapTile)
-        {
-            Debug.Log("No trap found at the position");
+        if (!IsServer)
             return;
-        }
 
-        TrapTile trapTile = (TrapTile)tile; // TODO: check if this cast is safe
-        TrapTile tempTrapTile;
-        TileBase tempTileBase;
-
-        if (tile == null || tile is not TrapTile)
-        {
+        if (_trapTileMap.GetTile(cellPosition) is not TrapTile trapTile)
             return;
-        }
 
-        // Id of the trap to delete
         int id = trapTile.id;
 
-        // Remove the trap from the dict of traps
         foreach (TrapData trapData in _placedTrap)
         {
             if (trapData.trapId == id)
@@ -257,523 +428,165 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
             }
         }
 
-        // Loop through the bounds of the tilemap
-        foreach (var pos in _trapTileMap.cellBounds.allPositionsWithin)
+        foreach (Vector3Int cell in _trapTileMap.cellBounds.allPositionsWithin)
         {
-            // Check if there's a tile at this position
-            if (_trapTileMap.HasTile(pos))
-            {
-                // Check if the tile at this position matches the trap tile
-                tempTileBase = _trapTileMap.GetTile(pos);
-                if (tempTileBase is TrapTile)
-                {
-                    tempTrapTile = (TrapTile)tempTileBase;
-
-                    if (tempTrapTile.id == id)
-                    {
-                        _trapTileMap.SetTile(pos, null);
-                    }
-                }
-            }
+            if (_trapTileMap.GetTile(cell) is TrapTile tile && tile.id == id)
+                _trapTileMap.SetTile(cell, null);
         }
 
-        // destroy the trap
-        // Meme correctif que Arrow.cs/BombTrap.cs/TrapChest.cs : Despawn() plutot que
-        // Destroy() direct sur un objet reseau spawn. RemoveTrap() est deja garde par
-        // "if (!IsHost) return;" plus haut, donc on est bien cote serveur ici.
-        NetworkObject trapNetworkObject = trapTile.trapPrefab.GetComponent<NetworkObject>();
+        if (trapTile.trapPrefab != null && trapTile.trapPrefab.IsSpawned)
+            trapTile.trapPrefab.NetworkObject.Despawn(true);
 
-        if (trapNetworkObject != null)
-            trapNetworkObject.Despawn(true);
-        else
-            Destroy(trapTile.trapPrefab.gameObject);
         OnTrapRemoved?.Invoke();
     }
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void OnPlayerPlaceTrapServerRpc(Vector3 worldPosition, ulong playerId, ulong networkId, RpcParams rpcParams = default)
+    private static Vector3 GetPreviewPosition(Vector3Int cellPosition, ATrap trap)
     {
-        if (!RpcValidation.SenderMatches(rpcParams, playerId))
-            return;
+        float sizeX = trap.matrix.GetLength(1);
+        float sizeY = trap.matrix.GetLength(0);
 
-        ATrap trap = GetNotPlacedTrapByPlayerId(playerId);
-
-        if (!trap || !trap.isSetable.Value) return;
-
-        if (_notPlacedTrap == null) return;
-
-        if (PlaceTrap(worldPosition, trap))
+        if (sizeX > 1 && sizeY > 1)
         {
-            // Remove the trap from the list of not placed traps
-            foreach (TrapData trapData in _notPlacedTrap)
-            {
-                if (trapData.trapId == trap.trapId.Value)
-                {
-                    _notPlacedTrap.Remove(trapData);
-
-                    NetworkObject networkObject = GetNetworkObjectById(networkId);
-
-                    if (networkObject != null)
-                    {
-                        networkObject.gameObject.GetComponent<TilemapHover>().isSettingTrap.Value = false;
-                    }
-
-                    break;
-                }
-            }
-            OnTrapPlaced?.Invoke();
-        }
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void OnPlayerSelectedATrapServerRpc(int trapId, ulong playerId, ulong cursordId, RpcParams rpcParams = default)
-    {
-        if (!RpcValidation.SenderMatches(rpcParams, playerId))
-            return;
-
-        ATrap trap = null;
-
-        foreach (var dictTrapElem in _notChoosedTrap)
-        {
-            ATrap tempTrap = GetTrapFromNetworkId(dictTrapElem.networkObjectId);
-
-            if (trapId == tempTrap.trapId.Value)
-            {
-                trap = tempTrap;
-                Debug.Log("OnPlayerSelectedATrapServerRpc Trap found.");
-                break;
-            }
+            float offsetY = (sizeY % 2 == 0) ? sizeY / 2 - 1.0f : sizeY / 2 - 0.5f;
+            return cellPosition + new Vector3(sizeX / 2, -offsetY, 0);
         }
 
-        if (trap == null) return;
+        if (sizeX > 1)
+            return cellPosition + new Vector3(sizeX / 2, 0.5f, 0);
 
-        // Check if the player is already the owner of a trap
-        foreach (var dictTrapElem in _notPlacedTrap)
+        if (sizeY > 1)
         {
-            ATrap tempTrap = GetTrapFromNetworkId(dictTrapElem.networkObjectId);
-
-            if (tempTrap.creatorId == playerId)
-            {
-                Debug.Log("OnPlayerSelectedATrapServerRpc already have a trap.");
-                return;
-            }
+            float offsetY = (sizeY % 2 == 0) ? sizeY / 2 - 2.0f : sizeY / 2 - 1.0f;
+            return cellPosition + new Vector3(0.5f, -offsetY, 0);
         }
 
-        trap.creatorId = playerId;
-        trap.needToBeSelected.Value = false;
-
-        // Get Network Id of the trap
-        ulong networkId = trap.GetComponent<NetworkObject>().NetworkObjectId;
-
-        // Change the trap dict from _notChoosedTrap to _notPlacedTrap
-        _notPlacedTrap.Add(new TrapData(trap.trapId.Value, networkId));
-
-        foreach (TrapData trapData in _notChoosedTrap)
-        {
-            if (trapId == trapData.trapId)
-            {
-                _notChoosedTrap.Remove(trapData);
-                break;
-            }
-        }
-
-        // Get the Cursor GameObject
-        GameObject playerCursor = GetNetworkObjectById(cursordId).gameObject;
-        playerCursor.GetComponent<TilemapHover>().isSettingTrap.Value = true;
-        playerCursor.GetComponent<TilemapHover>().canPlaceTrap.Value = true;
-
-        Debug.Log("OnPlayerSelectedATrapServerRpc success by : " + playerId);
-        CloseUiToSelectTrapServerRpc();
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void CreateTrapToBeSelectedServerRpc()
-    {
-        // Generate a random trap
-        ATrap trap = Instantiate(
-            _gameObjectArray[UnityEngine.Random.Range(0, _gameObjectArray.Length)]
-        );
-
-        if (trap == null) return;
-
-        Debug.Log("Name if the trap created by the chest -> " + trap.gameObject.name);
-
-        TrapChest trapChest = GameObject.Find("TrapChest(Clone)").GetComponent<TrapChest>();
-        if (trapChest == null) return;
-        ChestUi chestUi = trapChest.Image.GetComponent<ChestUi>();
-        if (chestUi == null) return;
-        RectTransform rectTransform = chestUi.GetComponent<RectTransform>();
-        if (rectTransform == null) return;
-
-        // BUG SIGNALE (non corrige) : "Screen.height / Screen.height" vaut toujours 1.0,
-        // quel que soit l'ecran - un ratio qui se divise par lui-meme ne sert a rien.
-        // C'est presque certainement une erreur de copier-coller (peut-etre
-        // "Screen.width / Screen.height" pour un vrai ratio d'aspect ?). Je ne corrige
-        // pas a l'aveugle : je ne peux pas verifier visuellement le bon resultat sans
-        // Unity, et une mauvaise supposition introduirait un autre bug visuel.
-        float screenRatio =  Screen.height / Screen.height;
-
-        float halfWidth = rectTransform.rect.width / 2;
-        float halfHeight = rectTransform.rect.height / 2;
-
-        float widthChestUi = halfWidth - _OffsetSpawn < 0 ? halfWidth : halfWidth - _OffsetSpawn;
-        float heightChestUi = halfHeight - _OffsetSpawn < 0 ? halfHeight : halfHeight - _OffsetSpawn;
-
-        trap.transform.position = new Vector3((UnityEngine.Random.Range(-widthChestUi, widthChestUi) * screenRatio) / 100.0f, 0,
-            (UnityEngine.Random.Range(-heightChestUi, heightChestUi) * screenRatio) / 100.0f);
-        Debug.Log("trap.transform.position  -> " + trap.transform.position);
-
-
-        // Call server network spawn
-        trap.GetComponent<NetworkObject>().Spawn();
-        trap.creatorId = 0; // 0 is the host (server Id)
-        trap.trapId.Value = _lastId.Value;
-
-        // Get Network Id of the trap
-        ulong networkId = trap.GetComponent<NetworkObject>().NetworkObjectId;
-
-        // Add the trap to the list of non placed traps
-        _notChoosedTrap.Add(new TrapData(trap.trapId.Value, networkId));
-        _lastId.Value++;
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void OnPlayerRotateTrapServerRpc(int position, ulong playerId, RpcParams rpcParams = default)
-    {
-        if (!RpcValidation.SenderMatches(rpcParams, playerId))
-            return;
-
-        ATrap trap = GetNotPlacedTrapByPlayerId(playerId);
-
-        if (trap)
-        {
-            if (debug)
-            {
-                UnDrawLastTiles(trap);
-            }
-            trap.RotateShape(position);
-        }
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void OnPlayerRemoveTrapServerRpc(Vector3 worldPosition)
-    {
-        RemoveTrap(worldPosition);
-    }
-
-    private bool IsOtherTrapBlockPlacement(Vector3Int cellPosition, ATrap trap)
-    {
-        for (int i = 0; i < trap.matrix.GetLength(0); i++)
-        {
-            for (int j = 0; j < trap.matrix.GetLength(1); j++)
-            {
-                if (trap.matrix[i, j] != 1)
-                {
-                    continue;
-                }
-
-                Vector3Int tilePosition = new Vector3Int(cellPosition.x + j, cellPosition.y - i, 0);
-
-                // Check if there is no trap placed on the tile
-                if (_trapTileMap.HasTile(tilePosition))
-                {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    public bool PlaceTrap(Vector3 worldPosition, ATrap trap)
-    {
-        Vector3Int cellPosition = _trapTileMap.WorldToCell(worldPosition);
-        TrapTile trapTile = ScriptableObject.CreateInstance<TrapTile>();
-        trapTile.trapPrefab = trap;
-        trapTile.id = trap.trapId.Value;
-
-        if (debug)
-        {
-            trapTile.sprite = _sprite;
-        }
-
-        // && !IsOtherTrapBlockPlacement(cellPosition, trap)
-        if (trap.isBombTrap)
-        {
-            Debug.Log("Trying to place bomb trap at: " + cellPosition);
-            BombTrap bombTrap = (BombTrap)trap;
-
-            bombTrap.ExplodeBomb(cellPosition);
-            return true;
-        }
-
-        // Check if the trap can be placed
-        if (!IsOtherTrapBlockPlacement(cellPosition, trap) /*!_trapSetable*/)
-        {
-            return false;
-        }
-
-        if (trap.isPlaced.Value)
-        {
-            return false;
-        }
-
-        Debug.Log("PlaceTrap at " + cellPosition);
-
-        for (int i = 0; i < trap.matrix.GetLength(0); i++)
-        {
-            for (int j = 0; j < trap.matrix.GetLength(1); j++)
-            {
-                if (trap.matrix[i, j] != 1)
-                {
-                    continue;
-                }
-
-                Vector3Int tilePosition = new Vector3Int(cellPosition.x + j, cellPosition.y - i, 0);
-
-                _trapTileMap.SetTile(tilePosition, trapTile);
-            }
-        }
-        if (debug)
-        {
-            UnDrawLastTiles(trap);
-        }
-
-        trap.isPlaced.Value = true;
-
-        // Get Network Id of the trap
-        ulong networkId = trap.GetComponent<NetworkObject>().NetworkObjectId;
-
-        // Add the trap to the placed dict
-        _placedTrap.Add(new TrapData(trap.trapId.Value, networkId));
-        return true;
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void CheckMouseOnTileServerRpc(Vector3 worldPosition, ulong playerId, RpcParams rpcParams = default)
-    {
-        if (!RpcValidation.SenderMatches(rpcParams, playerId))
-            return;
-
-        Vector3Int cellPosition = _paternTileMap.WorldToCell(worldPosition);
-
-        if (!AreAllNetworkVariablesInitialized())
-        {
-            return;
-        }
-
-        ATrap trap = GetNotPlacedTrapByPlayerId(playerId);
-
-        if (trap == null)
-        {
-            return;
-        }
-
-        if (trap.needToBeSelected.Value)
-        {
-            return;
-        }
-
-        if (_paternTileMap.HasTile(cellPosition))
-        {
-            if (trap.cellPosition != cellPosition)
-            {
-                if (debug)
-                {
-                    UnDrawLastTiles(trap);
-                }
-                trap.cellPosition = cellPosition;
-                DrawShapeOfTrap(trap.cellPosition, trap);
-
-                float offsetX = trap.matrix.GetLength(1);
-                float offsetY = trap.matrix.GetLength(0);
-
-                if (offsetX > 1 && offsetY > 1)
-                {
-                    offsetY = (offsetY % 2 == 0) ? offsetY / 2 - 1.0f : offsetY / 2 - 0.5f;
-                    offsetX = (offsetX % 2 == 0) ? offsetX / 2 : offsetX / 2;
-                    trap.transform.position = trap.cellPosition + new Vector3(offsetX, -offsetY, 0);
-                }
-                else if (offsetX > 1)
-                {
-                    offsetX = (offsetX % 2 == 0) ? offsetX / 2 : offsetX / 2;
-                    trap.transform.position = trap.cellPosition + new Vector3(offsetX, 0.5f, 0);
-                }
-                else if (offsetY > 1)
-                {
-                    offsetY = (offsetY % 2 == 0) ? offsetY / 2 - 2.0f : offsetY / 2 - 1.0f;
-                    trap.transform.position = trap.cellPosition + new Vector3(0.5f, -offsetY, 0);
-                }
-                else
-                {
-                    trap.transform.position = trap.cellPosition + new Vector3(0.5f, 0.5f, 0);
-                }
-            }
-        }
+        return cellPosition + new Vector3(0.5f, 0.5f, 0);
     }
 
     private void UnDrawLastTiles(ATrap trap)
     {
-        for (int i = 0; i < trap.matrix.GetLength(0); i++)
+        foreach (Vector3Int cell in GetShapeCells(trap.cellPosition, trap))
         {
-            for (int j = 0; j < trap.matrix.GetLength(1); j++)
+            if (_paternTileMap.HasTile(cell))
             {
-                if (trap.matrix[i, j] != 1)
-                {
-                    continue;
-                }
-
-                Vector3Int tilePosition = new Vector3Int(trap.cellPosition.x + j, trap.cellPosition.y - i, 0);
-
-                if (_paternTileMap.HasTile(tilePosition))
-                {
-                    _paternTileMap.SetTileFlags(tilePosition, TileFlags.None);
-                    _paternTileMap.SetColor(tilePosition, Color.white);
-                }
+                _paternTileMap.SetTileFlags(cell, TileFlags.None);
+                _paternTileMap.SetColor(cell, Color.white);
             }
         }
     }
 
     private void DrawShapeOfTrap(Vector3Int cellPosition, ATrap trap)
     {
-        for (int i = 0; i < trap.matrix.GetLength(0); i++)
+        if (!debug)
+            return;
+
+        foreach (Vector3Int cell in GetShapeCells(cellPosition, trap))
         {
-            for (int j = 0; j < trap.matrix.GetLength(1); j++)
+            if (_paternTileMap.HasTile(cell))
             {
-                if (trap.matrix[i, j] != 1)
-                {
-                    continue;
-                }
-
-                Vector3Int tilePosition = new Vector3Int(cellPosition.x + j, cellPosition.y - i, 0);
-
-                if (_paternTileMap.HasTile(tilePosition))
-                {
-                    if (debug)
-                    {
-                        _paternTileMap.SetTileFlags(tilePosition, TileFlags.None);
-                        _paternTileMap.SetColor(tilePosition, Color.green);
-                    }
-                }
+                _paternTileMap.SetTileFlags(cell, TileFlags.None);
+                _paternTileMap.SetColor(cell, Color.green);
             }
         }
+    }
+
+    #endregion
+
+    #region Placed traps lifecycle (server only)
+
+    // Safe to call from any peer: only the server broadcasts.
+    public void HideAllPlacedTraps()
+    {
+        if (IsServer)
+            HideAllPlacedTrapClientRpc();
+    }
+
+    public void ActivateTraps()
+    {
+        foreach (TrapData trapData in _placedTrap)
+        {
+            ATrap trap = GetTrapFromNetworkId(trapData.networkObjectId);
+            if (trap != null)
+                trap.ActivateCollideStateClientRpc();
+        }
+    }
+
+    public void DeactivateTraps()
+    {
+        foreach (TrapData trapData in _placedTrap)
+        {
+            ATrap trap = GetTrapFromNetworkId(trapData.networkObjectId);
+            if (trap != null)
+                trap.UnActivateCollideStateClientRpc();
+        }
+    }
+
+    public void DespawnAllTraps()
+    {
+        DespawnTraps(_placedTrap);
+        DespawnTraps(_notPlacedTrap);
+        DespawnTraps(_notChoosedTrap);
+    }
+
+    private void DespawnTraps(NetworkList<TrapData> traps)
+    {
+        foreach (TrapData trapData in traps)
+        {
+            ATrap trap = GetTrapFromNetworkId(trapData.networkObjectId);
+            if (trap != null && trap.IsSpawned)
+                trap.NetworkObject.Despawn(true);
+        }
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    private void HideAllPlacedTrapClientRpc()
+    {
+        SetPlacedTrapsVisible(false);
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    private void ShowAllPlacedTrapClientRpc()
+    {
+        SetPlacedTrapsVisible(true);
+    }
+
+    private void SetPlacedTrapsVisible(bool visible)
+    {
+        foreach (TrapData trapData in _placedTrap)
+        {
+            ATrap trap = GetTrapFromNetworkId(trapData.networkObjectId);
+            if (trap != null)
+                trap.gameObject.SetActive(visible);
+        }
+    }
+
+    #endregion
+
+    #region Lookups
+
+    private NetworkObject GetNetworkObjectById(ulong networkObjectId)
+    {
+        return NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(networkObjectId, out var networkObject)
+            ? networkObject
+            : null;
+    }
+
+    private ATrap GetTrapFromNetworkId(ulong networkObjectId)
+    {
+        NetworkObject networkObject = GetNetworkObjectById(networkObjectId);
+        return networkObject != null ? networkObject.GetComponent<ATrap>() : null;
     }
 
     private ATrap GetNotPlacedTrapByPlayerId(ulong playerId)
     {
-        foreach (var dictTrapElem in _notPlacedTrap)
+        foreach (TrapData trapData in _notPlacedTrap)
         {
-            ATrap tempTrap = GetTrapFromNetworkId(dictTrapElem.networkObjectId);
-
-            if (tempTrap.creatorId == playerId)
-            {
-                return tempTrap;
-            }
+            ATrap trap = GetTrapFromNetworkId(trapData.networkObjectId);
+            if (trap != null && trap.creatorId == playerId)
+                return trap;
         }
         return null;
     }
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void CreateMultipleRandomTrapServerRpc()
-    {
-        if (!IsHost) return;
-
-        // Get the number of players
-        int numberOfPlayers = NetworkManager.Singleton.ConnectedClients.Count;
-
-        for (int i = 0; i < numberOfPlayers; i++)
-        {
-            CreateTrapToBeSelectedServerRpc();
-        }
-
-        // Able to change phase
-        ChangeStatePhaseServerRpc(true);
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void DestroyRandomCreatedTrapServerRpc()
-    {
-        // TODO: implement in case there are too many traps in the selection
-        if (!IsHost) return;
-        return;
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void HideAllPlacedTrapServerRpc()
-    {
-        HideAllPlacedTrapClientRpc();
-    }
-
-    [Rpc(SendTo.ClientsAndHost)]
-    public void HideAllPlacedTrapClientRpc()
-    {
-        // Loop over all placed trap list get them and unactivate them
-        foreach (TrapData trapData in _placedTrap)
-        {
-            ATrap tempTrap = GetTrapFromNetworkId(trapData.networkObjectId);
-
-            tempTrap.gameObject.SetActive(false);
-        }
-    }
-
-    [Rpc(SendTo.ClientsAndHost)]
-    public void ShowAllPlacedTrapClientRpc()
-    {
-        // Loop over all placed trap list get them and activate them
-        foreach (TrapData trapData in _placedTrap)
-        {
-            ATrap tempTrap = GetTrapFromNetworkId(trapData.networkObjectId);
-
-            tempTrap.gameObject.SetActive(true);
-        }
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void ActivateCollideStateTrapServerRpc()
-    {
-        // Loop over all placed trap list, get them and switch state to collide
-        foreach (TrapData trapData in _placedTrap)
-        {
-            ATrap tempTrap = GetTrapFromNetworkId(trapData.networkObjectId);
-
-            tempTrap.ActivateCollideStateClientRpc();
-        }
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void UnActivateCollideStateTrapServerRpc()
-    {
-        foreach (TrapData trapData in _placedTrap)
-        {
-            ATrap tempTrap = GetTrapFromNetworkId(trapData.networkObjectId);
-
-            tempTrap.UnActivateCollideStateClientRpc();
-        }
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void RemoveTrapServerRpc()
-    {
-        // Clean all traps from all lists
-
-        foreach (TrapData trapData in _placedTrap)
-        {
-            ATrap tempTrap = GetTrapFromNetworkId(trapData.networkObjectId);
-
-            tempTrap.gameObject.GetComponent<NetworkObject>().Despawn(true);
-        }
-
-        foreach (TrapData trapData in _notPlacedTrap)
-        {
-            ATrap tempTrap = GetTrapFromNetworkId(trapData.networkObjectId);
-
-            tempTrap.gameObject.GetComponent<NetworkObject>().Despawn(true);
-        }
-
-        foreach (TrapData trapData in _notChoosedTrap)
-        {
-            ATrap tempTrap = GetTrapFromNetworkId(trapData.networkObjectId);
-
-            tempTrap.gameObject.GetComponent<NetworkObject>().Despawn(true);
-        }
-    }
+    #endregion
 }

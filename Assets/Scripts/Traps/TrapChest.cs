@@ -32,7 +32,7 @@ public class TrapChest : NetworkBehaviour
                 Image = child.gameObject;
             }
         }
-        TrapPlacementManager.Instance.HideAllPlacedTrapServerRpc();
+        TrapPlacementManager.Instance.HideAllPlacedTraps();
     }
 
     public void OpenChest()

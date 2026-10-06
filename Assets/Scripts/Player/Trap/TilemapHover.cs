@@ -24,7 +24,9 @@ public class TilemapHover : NetworkBehaviour
 
     public void OnDisable()
     {
-        if (!IsOwner) return;
+        // An RPC cannot be sent once despawned (scene change, disconnect).
+        if (!IsOwner || !IsSpawned)
+            return;
 
         ResetTilemapHoverServerRpc();
     }
@@ -45,13 +47,7 @@ public class TilemapHover : NetworkBehaviour
     [Rpc(SendTo.Server)]
     private void ResetTilemapHoverServerRpc()
     {
-        // Bug corrige : l'ancien code verifiait "if (!IsOwner) return;" a l'interieur
-        // meme du ServerRpc. Cote serveur, IsOwner demande "le serveur est-il proprietaire
-        // de cet objet ?", pas "l'appelant l'etait-il ?" — ce qui bloquait le reset pour
-        // n'importe quel client normal (ca ne marchait que pour l'hote lui-meme).
-        // RequireOwnership = false a ete retire : NGO refuse deja nativement un appel
-        // venant d'un non-proprietaire, donc la verification manuelle etait a la fois
-        // fausse et redondante.
+        // Sender check is native: [Rpc(SendTo.Server)] only accepts the owner.
         isSettingTrap.Value = false;
         canPlaceTrap.Value = false;
     }
@@ -69,11 +65,8 @@ public class TilemapHover : NetworkBehaviour
 
     private void OnMouseAction1()
     {
-        if (canPlaceTrap.Value && isSettingTrap.Value) {
-            ulong networkId = GetComponent<NetworkObject>().NetworkObjectId;
-
-            TrapPlacementManager.Instance.OnPlayerPlaceTrapServerRpc(_worldPosition, _playerId, networkId);
-        }
+        if (canPlaceTrap.Value && isSettingTrap.Value)
+            TrapPlacementManager.Instance.OnPlayerPlaceTrapServerRpc(_playerId, NetworkObjectId);
     }
 
     private void OnRotateLeft()

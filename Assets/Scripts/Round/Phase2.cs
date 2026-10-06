@@ -52,6 +52,6 @@ public class Phase2 : APhase
 
         // Revive everyone and rebuild the round's player list before the traps go live.
         GameRoundManager.Instance.ResetPlayers();
-        TrapPlacementManager.Instance.ActivateCollideStateTrapServerRpc();
+        TrapPlacementManager.Instance.ActivateTraps();
     }
 }

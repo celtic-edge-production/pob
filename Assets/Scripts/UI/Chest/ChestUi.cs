@@ -12,37 +12,37 @@ public class ChestUi : NetworkBehaviour
         _Animator.SetBool("IsToggle", false);
     }
 
+    // Animation event, end of the opening animation. Server only.
     public void OnUIOpen()
     {
-        if (!IsOwner) return;
+        if (!IsServer)
+            return;
 
-        Debug.Log("UiOpen is opened.");
-
-        // Create Random Trap, # : of numbers of client (or more)
-        TrapPlacementManager.Instance.CreateMultipleRandomTrapServerRpc();
+        TrapPlacementManager.Instance.CreateTrapsForSelection();
     }
 
+    // Animation event, end of the closing animation. Server only.
     public void OnUIClose()
     {
-        if (!IsOwner) return;
+        if (!IsServer)
+            return;
 
-        Debug.Log("OnUIClose");
-
-        // Destroy non selected trap if there is any    
         TrapPlacementManager.Instance.ToggleSelectedTrap();
-        TrapPlacementManager.Instance.DestroyRandomCreatedTrapServerRpc();
-
         _Animator.SetBool("IsToggle", false);
-
-        CloseChestAnimationTriggerServerRpc();
+        CloseChest();
     }
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void CloseChestAnimationTriggerServerRpc()
+    // Server only: called once every player has chosen a trap.
+    public void StartClosingAnimation()
     {
-        // Find "TrapChest" gameObject
+        _Animator.SetBool("IsOpening", false);
+        _Animator.SetBool("IsToggle", true);
+    }
+
+    private void CloseChest()
+    {
         GameObject trapChest = GameObject.Find("TrapChest(Clone)");
-        
+
         if (trapChest == null)
         {
             Debug.LogError("TrapChest not found.");
@@ -50,17 +50,5 @@ public class ChestUi : NetworkBehaviour
         }
 
         trapChest.GetComponent<Animator>().SetBool("Open", false);
-
-        // Get parent GameObject
-        //GameObject parent = transform.parent.gameObject;
-        //parent.GetComponent<Animator>().SetBool("Open", false);
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void StartClosingAnimationServerRpc()
-    {
-        Debug.Log("Start Closing Animation");
-        _Animator.SetBool("IsOpening", false);
-        _Animator.SetBool("IsToggle", true);
     }
 }

@@ -61,13 +61,13 @@ public class Shooter: ATrap
 
     public void ShootArrow()
     {
-        if (!IsHost) return;
+        if (!IsServer)
+            return;
 
-        SpawnArrowServerRpc();
+        SpawnArrow();
     }
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void SpawnArrowServerRpc()
+    private void SpawnArrow()
     {
         GameObject arrow = Instantiate(_Arrow, transform.position, Quaternion.identity);
 

@@ -11,7 +11,7 @@ public class BombTrap: ATrap
     #endregion
 
     #region Private Attributs
-    private Vector3 _TragetPosition;
+    private Vector3Int _targetCell;
     #endregion
 
     override protected void Awake()
@@ -33,9 +33,9 @@ public class BombTrap: ATrap
         }
     }
 
-    public void ExplodeBomb(Vector3 targetPosition)
+    public void ExplodeBomb(Vector3Int targetCell)
     {
-        _TragetPosition = targetPosition;
+        _targetCell = targetCell;
 
         if (!isExploding)
         {
@@ -44,16 +44,19 @@ public class BombTrap: ATrap
         }
     }
 
+    // Animation event: runs on every peer playing the animation, only the server removes the trap.
+    public void OnExplode()
+    {
+        if (!IsServer)
+            return;
+
+        TrapPlacementManager.Instance.RemoveTrapAt(_targetCell);
+    }
+
     private IEnumerator Explode()
     {
         yield return new WaitForSeconds(1.0f);
         _animator.SetBool("IsExploding", true);
-    }
-
-    public void OnExplode()
-    {
-        TrapPlacementManager.Instance.RemoveTrap(_TragetPosition);
-        Debug.Log("Explode");
     }
 
     public void OnExplosionComplete()

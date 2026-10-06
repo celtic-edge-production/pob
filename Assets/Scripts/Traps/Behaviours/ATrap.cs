@@ -33,6 +33,9 @@ public abstract class ATrap : NetworkBehaviour
     public NetworkVariable<bool> isPlaced = new NetworkVariable<bool>();
     public NetworkVariable<int> trapId = new NetworkVariable<int>();
 
+    // Server only: true once the preview has been shown on a valid cell (cellPosition is meaningful).
+    [NonSerialized] public bool hasPreviewCell;
+
     [Flags]
     public enum TrapState
     {
@@ -63,20 +66,17 @@ public abstract class ATrap : NetworkBehaviour
         }
     }
 
-    public override void OnDestroy()
+    public override void OnNetworkDespawn()
     {
-        // Play the destroy sound
-     
+        // Played locally on every peer: an RPC can no longer be sent once despawned
+        // (the old OnDestroy did that and threw on every peer).
         if (_destroyAudioClip != null)
-        {
-            PlaySoundServerRpc();
-            //SoundManagerSO.PlaySoundFXClip(_destroyAudioClip, transform.position, 1.0f);
-        }
+            AudioSource.PlayClipAtPoint(_destroyAudioClip, transform.position);
 
         DestroyTrap();
-
-        base.OnDestroy();
+        base.OnNetworkDespawn();
     }
+
     protected virtual void DestroyTrap()
     {
         // Custom destroy method if needed
@@ -224,17 +224,5 @@ public abstract class ATrap : NetworkBehaviour
         _state &= ~TrapState.Collide;
         _state &= ~TrapState.Animate;
         return;
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    private void PlaySoundServerRpc()
-    {
-        PlaySoundClientRpc(transform.position);
-    }
-
-    [Rpc(SendTo.ClientsAndHost)]
-    private void PlaySoundClientRpc(Vector3 position)
-    {
-        AudioSource.PlayClipAtPoint(_destroyAudioClip, position);
     }
 }

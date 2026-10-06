@@ -398,7 +398,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))
             player.Revive();
 
-        TrapPlacementManager.Instance.RemoveTrapServerRpc();
+        TrapPlacementManager.Instance.DespawnAllTraps();
         ShowGameMessageClientRpc("Not enough players left, back to the lobby...");
         StartCoroutine(ReturnToLobby(5.0f));
     }

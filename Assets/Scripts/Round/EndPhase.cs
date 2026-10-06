@@ -12,7 +12,7 @@ public class EndPhase : APhase
         foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))
             player.Revive();
 
-        TrapPlacementManager.Instance.RemoveTrapServerRpc();
+        TrapPlacementManager.Instance.DespawnAllTraps();
 
         // Built on the server: character names are the same on every peer.
         string message = BuildWinnerMessage(GameRoundManager.Instance.GetWinnerIds());

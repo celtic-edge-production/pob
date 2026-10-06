@@ -26,7 +26,7 @@ public class Phase1 : APhase
 
         SetPlayersPlaying(false);
         StartCoroutine(OpenChest());
-        TrapPlacementManager.Instance.UnActivateCollideStateTrapServerRpc();
+        TrapPlacementManager.Instance.DeactivateTraps();
     }
 
     [Rpc(SendTo.ClientsAndHost)]

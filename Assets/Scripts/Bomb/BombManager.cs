@@ -40,8 +40,8 @@ public class BombManager : NetworkSingleton<BombManager>
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void TransferBombServerRpc(ulong newHolderId, RpcParams rpcParams = default)
     {
-        // Only the current holder may pass the bomb. The caller (TransferManager's collision
-        // callback) runs on every peer, so the other peers' calls are rejected here.
+        // Only the current holder may pass the bomb: the request comes from the holder's own
+        // machine (TransferManager.OnCollisionEnter2D), and the sender is checked again here.
         if (!RpcValidation.SenderMatches(rpcParams, bombHolderId.Value))
             return;
 

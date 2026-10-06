@@ -6,7 +6,7 @@ public class SceneManagerNetwork : NetworkBehaviour
 {
     [SerializeField] private string m_LobbySceneName;
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
     public void LoadSceneRpc(string sceneName)
     {
         if (!IsServer) return;

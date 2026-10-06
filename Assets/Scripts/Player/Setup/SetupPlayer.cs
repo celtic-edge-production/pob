@@ -40,7 +40,7 @@ public class SetupPlayer : NetworkBehaviour
         InitializePlayerServerRpc();
     }
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     private void InitializePlayerServerRpc()
     {
         Transform playerObjectTransform = NetworkManager.Singleton.ConnectedClients[OwnerClientId].PlayerObject.transform;
@@ -59,7 +59,7 @@ public class SetupPlayer : NetworkBehaviour
         InitializePlayerClientRpc();
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void InitializePlayerClientRpc()
     {
         if (!IsOwner)

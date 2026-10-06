@@ -6,7 +6,7 @@ public class EndPhase : APhase
 {
     [SerializeField] private float _displayDuration = 5f;
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
     public override void StartPhaseServerRpc()
     {
         foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))

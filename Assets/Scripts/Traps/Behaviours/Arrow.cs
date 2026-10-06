@@ -23,7 +23,7 @@ public class Arrow : NetworkBehaviour
         NetworkObject.Despawn(true);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void PlaySoundClientRpc(bool hitPlayer, Vector3 position)
     {
         // Choose the appropriate sound to play

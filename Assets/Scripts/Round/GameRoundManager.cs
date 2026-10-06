@@ -411,7 +411,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         PlayerRoundScores.CheckDirtyState();
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void ShowGameMessageClientRpc(string message)
     {
         winnerText.gameObject.SetActive(true);
@@ -434,7 +434,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         return deltas;
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void ResetCameraClientRpc()
     {
         if (mainCamera != null)
@@ -458,7 +458,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         ShowScoreboardClientRpc(survivorIds);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void ShowScoreboardClientRpc(ulong[] survivorIds)
     {
         PlayerIdentity[] identities = FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None);
@@ -518,7 +518,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         NetworkManager.Singleton.SceneManager.LoadScene("Lobby", LoadSceneMode.Single);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void DesactivateWinnerTextClientRpc()
     {
         winnerText.gameObject.SetActive(false);

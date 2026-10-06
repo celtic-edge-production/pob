@@ -39,10 +39,10 @@ public class TilemapHover : NetworkBehaviour
         }
     }
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     private void ResetTilemapHoverServerRpc()
     {
-        // Sender check is native: [Rpc(SendTo.Server)] only accepts the owner.
+        // Only the owner may reset its own cursor state.
         isSettingTrap.Value = false;
         canPlaceTrap.Value = false;
     }

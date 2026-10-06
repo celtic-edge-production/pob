@@ -117,7 +117,7 @@ public abstract class ATrap : NetworkBehaviour
             PlayActionSoundClientRpc(transform.position);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void PlayActionSoundClientRpc(Vector3 position)
     {
         if (_actionSound != null)
@@ -165,13 +165,13 @@ public abstract class ATrap : NetworkBehaviour
         matrix = newMatrix;
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void ActivateCollideStateClientRpc()
     {
         _state |= TrapState.Collide | TrapState.Animate;
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void UnActivateCollideStateClientRpc()
     {
         _state &= ~(TrapState.Collide | TrapState.Animate);

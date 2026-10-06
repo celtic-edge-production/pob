@@ -88,7 +88,7 @@ public class TrapChest : NetworkBehaviour
         StartCoroutine(DespawnAfterDelay());
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void ChangeCameraClientRpc()
     {
         Camera mainCamera = Camera.main;
@@ -114,7 +114,7 @@ public class TrapChest : NetworkBehaviour
             PlaySoundClientRpc(isOpenSound, transform.position);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void PlaySoundClientRpc(bool isOpenSound, Vector3 position)
     {
         AudioSource.PlayClipAtPoint(isOpenSound ? _OpenSoundAudioClip : _CloseSoundAudioClip, position);

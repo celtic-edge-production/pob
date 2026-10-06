@@ -80,7 +80,7 @@ public class PlayerIdentity : NetworkBehaviour
         // In the lobby, give the character back so another player can pick it.
         // Runs immediately on the server: IsPlaying = false + RemoveOwnership().
         if (character != null && character.IsSpawned)
-            character.RemoveOwnerShipServerRpc();
+            character.ReleaseFromPlayer();
 
         if (Characters.transform.parent != null)
             Characters.transform.SetParent(null);
@@ -132,7 +132,7 @@ public class PlayerIdentity : NetworkBehaviour
         }
     }
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     private void UpdatePlayerDataServerRpc(Color color)
     {
         RefreshInitInCaseOfBadSync();
@@ -144,7 +144,7 @@ public class PlayerIdentity : NetworkBehaviour
         UpdatePlayerDataClientRpc(color);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void UpdatePlayerDataClientRpc(Color color)
     {
         RefreshInitInCaseOfBadSync();
@@ -162,7 +162,7 @@ public class PlayerIdentity : NetworkBehaviour
         }
     }
 
-    [Rpc(SendTo.SpecifiedInParams)]
+    [Rpc(SendTo.SpecifiedInParams, InvokePermission = RpcInvokePermission.Server)]
     private void SendDataToNewClientRpc(Color playerColor, RpcParams rpcParams = default)
     {
         RefreshInitInCaseOfBadSync();
@@ -198,7 +198,7 @@ public class PlayerIdentity : NetworkBehaviour
         RequestOwnerShipServerRpc();
     }
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     public void RequestOwnerShipServerRpc()
     {
         if (Characters != null || Cursor == null)
@@ -225,7 +225,7 @@ public class PlayerIdentity : NetworkBehaviour
         Characters = obj;
         Characters.transform.SetParent(gameObject.transform);
 
-        player.RequestOwnerShipServerRpc(Data.PlayerID.Value - 1);
+        player.AssignToPlayer(OwnerClientId);
 
         cursor.OnClick -= SelectCharacter;
         cursor.IsActive.Value = false;
@@ -234,7 +234,7 @@ public class PlayerIdentity : NetworkBehaviour
         SetCharacterOnClientRpc();
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void SetCharacterOnClientRpc()
     {
         if (IsOwner) {
@@ -253,7 +253,7 @@ public class PlayerIdentity : NetworkBehaviour
         RemoveOwnerShipServerRpc();
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void UnbindClientRpc()
     {
         if (IsOwner && Characters == null) {
@@ -263,7 +263,7 @@ public class PlayerIdentity : NetworkBehaviour
         }
     }
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     public void ResetPositionServerRpc()
     {
         if (Characters && Characters.TryGetComponent(out LobbyCharacter lobbyCharacter))
@@ -271,7 +271,7 @@ public class PlayerIdentity : NetworkBehaviour
         ResetPositionClientRpc();
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void ResetPositionClientRpc()
     {
         if (Characters && Characters.TryGetComponent(out LobbyCharacter lobbyCharacter))
@@ -295,7 +295,7 @@ public class PlayerIdentity : NetworkBehaviour
 
         PlayerCharacter player = Characters.GetComponent<PlayerCharacter>();
 
-        player.RemoveOwnerShipServerRpc();
+        player.ReleaseFromPlayer();
 
         SceneManager.MoveGameObjectToScene(Characters, SceneManager.GetActiveScene());
 
@@ -311,7 +311,7 @@ public class PlayerIdentity : NetworkBehaviour
         UnbindClientRpc();
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void RemoveOwnerShipClientRpc()
     {
         if (IsOwner)
@@ -320,7 +320,7 @@ public class PlayerIdentity : NetworkBehaviour
 
     // Phase 1 controls the cursor (trap placement), phase 2 the character.
     // Explicit state instead of a toggle: a missed or repeated call cannot invert it.
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void SetPlayingClientRpc(bool playing)
     {
         RefreshInitInCaseOfBadSync();

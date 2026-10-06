@@ -21,7 +21,7 @@ public class APhase : NetworkBehaviour
         if (!isCurrentPhase) return;
     }
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
     virtual public void StartPhaseServerRpc()
     {
 
@@ -34,7 +34,7 @@ public class APhase : NetworkBehaviour
             identity.SetPlayingClientRpc(playing);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     protected void SwitchTileMapStateClientRpc(bool value)
     {
         _SpawnTileMap.SetActive(value);

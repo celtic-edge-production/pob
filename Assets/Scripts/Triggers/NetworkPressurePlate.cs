@@ -33,7 +33,7 @@ public class NetworkPressurePlate : NetworkBehaviour {
         OnPressed?.Invoke(obj, isPressed);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void PressPlateClientRpc(bool isPressed)
     {
         PressurePlate.UpdatePlateState(isPressed);

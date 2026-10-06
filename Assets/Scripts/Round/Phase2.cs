@@ -7,7 +7,7 @@ public class Phase2 : APhase
 {
     public TMP_Text timer;
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
     public override void StartPhaseServerRpc()
     {
         DesactivateCameraClientRpc();
@@ -17,7 +17,7 @@ public class Phase2 : APhase
         StartCoroutine(ActivateTraps());
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void DesactivateCameraClientRpc()
     {
         Camera mainCamera = Camera.main;
@@ -40,7 +40,7 @@ public class Phase2 : APhase
         GameRoundManager.Instance.StartNewRound();
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void UpdateTimerClientRpc(string text)
     {
         timer.text = text;

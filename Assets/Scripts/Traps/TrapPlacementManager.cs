@@ -554,13 +554,13 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         }
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void HideAllPlacedTrapClientRpc()
     {
         SetPlacedTrapsVisible(false);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void ShowAllPlacedTrapClientRpc()
     {
         SetPlacedTrapsVisible(true);

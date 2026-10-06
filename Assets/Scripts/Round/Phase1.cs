@@ -8,7 +8,7 @@ public class Phase1 : APhase
 
     private TrapChest _TrapChest;
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
     public override void StartPhaseServerRpc()
     {
         //ResetCameraClientRpc();
@@ -29,7 +29,7 @@ public class Phase1 : APhase
         TrapPlacementManager.Instance.DeactivateTraps();
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void ResetCameraClientRpc()
     {
         Camera mainCamera = Camera.main;

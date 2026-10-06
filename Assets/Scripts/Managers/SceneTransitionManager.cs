@@ -9,7 +9,7 @@ public class SceneTransitionManager : NetworkSingleton<SceneTransitionManager>
         DontDestroyOnLoad(gameObject);
     }
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
     public void ChangeSceneRpc(string sceneName)
     {
         if (!IsServer)

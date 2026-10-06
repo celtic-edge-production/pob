@@ -90,7 +90,7 @@ public class TransferManager : NetworkBehaviour
         BombManager.Instance.TransferBombServerRpc(target.OwnerClientId);
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void DieClientRpc()
     {
         animator.SetTrigger("isDeadGround");
@@ -98,7 +98,7 @@ public class TransferManager : NetworkBehaviour
         _character.DesactivateCamera();
     }
 
-    [Rpc(SendTo.ClientsAndHost)]
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void ReviveClientRpc()
     {
         animator.ResetTrigger("isDeadGround");

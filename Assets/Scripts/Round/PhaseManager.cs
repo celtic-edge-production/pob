@@ -44,7 +44,7 @@ public class PhaseManager : NetworkBehaviour
         phase1.StartPhaseServerRpc();
     }
 
-    [Rpc(SendTo.Server)]
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
     public void SwitchGamePhaseServerRpc()
     {
         if (!IsServer) return;

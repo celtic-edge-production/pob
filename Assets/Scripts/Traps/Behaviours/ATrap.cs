@@ -44,6 +44,9 @@ public abstract class ATrap : NetworkBehaviour
     // True while the trap is live (phase 2): behaviours only run then.
     protected bool IsActive => (_state & TrapState.Collide) == TrapState.Collide;
 
+    // Set on every peer just before the end-of-game cleanup, so the traps do not all play their destroy sound at once.
+    public static bool MuteDestroySound { get; set; }
+
     protected virtual void Awake()
     {
         _boxCollider = GetComponent<BoxCollider2D>();
@@ -61,10 +64,19 @@ public abstract class ATrap : NetworkBehaviour
         }
     }
 
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        // A new trap means a new game (or a new placement phase): destroy sounds are allowed again.
+        MuteDestroySound = false;
+    }
+
     public override void OnNetworkDespawn()
     {
         // Played locally on every peer: an RPC can no longer be sent once despawned.
-        if (_destroyAudioClip != null)
+        // Skipped during the end-of-game cleanup (TrapPlacementManager.DespawnAllTraps).
+        if (_destroyAudioClip != null && !MuteDestroySound)
             AudioSource.PlayClipAtPoint(_destroyAudioClip, transform.position);
 
         DestroyTrap();

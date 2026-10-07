@@ -166,6 +166,12 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         CloseChestIfEveryoneChose();
     }
 
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
+    private void MuteTrapDestroySoundsClientRpc()
+    {
+        ATrap.MuteDestroySound = true;
+    }
+
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void CheckMouseOnTileServerRpc(Vector3 worldPosition, ulong playerId, RpcParams rpcParams = default)
     {
@@ -539,6 +545,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     public void DespawnAllTraps()
     {
+        MuteTrapDestroySoundsClientRpc();
         DespawnTraps(_placedTrap);
         DespawnTraps(_notPlacedTrap);
         DespawnTraps(_notChoosedTrap);

@@ -659,9 +659,16 @@ public class PlayerCharacter : NetworkBehaviour
         if ((collision.includeLayers.value & LayerMask.GetMask("TrapStun")) == 0)
             return;
 
-        Vector2 direction = (collision.transform.position - transform.position).normalized;
+        // Pushed away from the trap. The collider's centre is used rather than the transform,
+        // whose pivot is not always in the middle of the trap.
+        Vector2 away = ((Vector2)transform.position - (Vector2)collision.bounds.center).normalized;
+
+        // Right on top of the centre: no side to pick, so push back the way the player came from.
+        if (Mathf.Approximately(away.x, 0f))
+            away.x = isFacingRight ? -1f : 1f;
+
         ApplyKnockback(new Vector2(
-            direction.x * punchForce * Data.knockbackForceX,
+            away.x * punchForce * Data.knockbackForceX,
             punchForce * Data.knockbackForceY));
     }
 

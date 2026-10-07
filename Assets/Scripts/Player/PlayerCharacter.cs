@@ -26,8 +26,6 @@ public class PlayerCharacter : NetworkBehaviour
     public float LastOnWallRightTime { get; private set; }
     public float LastOnWallLeftTime { get; private set; }
 
-    public NetworkVariable<bool> isDead = new NetworkVariable<bool>(false);
-    public NetworkVariable<bool> isDeadHit = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> isStun = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> isStunHit = new NetworkVariable<bool>(false);
 
@@ -208,7 +206,6 @@ public class PlayerCharacter : NetworkBehaviour
     public bool CanAct()
     {
         return _transferManager.IsAlive.Value
-            && !isDead.Value && !isDeadHit.Value
             && !isStun.Value && !isStunHit.Value;
     }
 
@@ -219,18 +216,6 @@ public class PlayerCharacter : NetworkBehaviour
             return;
 
         transform.position = position;
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
-    private void SetDeadServerRpc(bool isDeadValue)
-    {
-        isDead.Value = isDeadValue;
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
-    private void SetDeadHitServerRpc(bool isDeadValue)
-    {
-        isDeadHit.Value = isDeadValue;
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
@@ -273,15 +258,6 @@ public class PlayerCharacter : NetworkBehaviour
         SetStunHitServerRpc(true);
     }
 
-    // Possibly an animation event: runs on every peer playing the animation.
-    public void DeadHit()
-    {
-        animator.SetTrigger("isDeadHit");
-
-        if (IsOwner)
-            SetDeadHitServerRpc(true);
-    }
-
     #endregion
 
     #region Update
@@ -321,7 +297,7 @@ public class PlayerCharacter : NetworkBehaviour
             return;
         }
 
-        if (isDead.Value || !IsPlaying.Value || isDeadHit.Value)
+        if (!IsPlaying.Value)
             return;
 
         if (isStun.Value)
@@ -466,7 +442,7 @@ public class PlayerCharacter : NetworkBehaviour
         if (!IsOwner)
             return;
 
-        if (!isDeadHit.Value && !isDead.Value && _transferManager.IsAlive.Value)
+        if (_transferManager.IsAlive.Value)
         {
             Run(IsWallJumping ? Data.wallJumpRunLerp : 1);
 
@@ -778,19 +754,6 @@ public class PlayerCharacter : NetworkBehaviour
                     SetStunServerRpc(true);
                 }
             }
-        }
-        else if (isDeadHit.Value)
-        {
-            animator.ResetTrigger("isDeadHit");
-            animator.SetTrigger("isDeadGround");
-
-            if (IsOwner)
-            {
-                SetDeadHitServerRpc(false);
-                SetDeadServerRpc(true);
-            }
-
-            rigidBody2D.linearVelocity = new Vector2(0, rigidBody2D.linearVelocity.y);
         }
 
         isGrounded = true;

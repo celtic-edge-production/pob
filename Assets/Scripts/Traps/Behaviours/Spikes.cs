@@ -8,10 +8,9 @@ public class Spikes : ATrap
         matrix = new int[,] { { 1 } };
     }
 
-    // The effect on the player is handled by PlayerCharacter; the trap only plays its sound.
-    private void OnTriggerEnter2D(Collider2D collision)
+    public override void OnPlayerHit()
     {
-        if (IsServer && IsActive && collision.CompareTag("Player"))
+        if (IsActive)
             PlayActionSound();
     }
 }

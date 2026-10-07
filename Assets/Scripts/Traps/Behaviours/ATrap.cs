@@ -129,6 +129,13 @@ public abstract class ATrap : NetworkBehaviour
             PlayActionSoundClientRpc(transform.position);
     }
 
+    // Server only: a player was hit by this trap. The hit is detected on the player's own
+    // machine (PlayerCharacter.TrapPunch), where his physics runs, then reported here.
+    // Overridden by the traps that play a sound on hit (Spikes, Shuriken).
+    public virtual void OnPlayerHit()
+    {
+    }
+
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void PlayActionSoundClientRpc(Vector3 position)
     {

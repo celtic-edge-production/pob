@@ -670,6 +670,23 @@ public class PlayerCharacter : NetworkBehaviour
         ApplyKnockback(new Vector2(
             away.x * punchForce * Data.knockbackForceX,
             punchForce * Data.knockbackForceY));
+
+        // The server cannot see this contact reliably (this character is driven by its owner),
+        // so the owner reports it and the trap plays its hit sound for everyone.
+        ATrap trap = collision.GetComponentInParent<ATrap>();
+        if (trap != null && trap.IsSpawned)
+            ReportTrapHitServerRpc(trap.NetworkObject);
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+    private void ReportTrapHitServerRpc(NetworkObjectReference trapReference)
+    {
+        if (!trapReference.TryGet(out NetworkObject trapObject))
+            return;
+
+        ATrap trap = trapObject.GetComponentInChildren<ATrap>();
+        if (trap != null)
+            trap.OnPlayerHit();
     }
 
     // Sent by the server (punch) to the owner of the character that was hit.

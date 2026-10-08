@@ -27,7 +27,7 @@ public class ChestUi : NetworkBehaviour
         if (!IsServer)
             return;
 
-        TrapPlacementManager.Instance.ToggleSelectedTrap();
+        TrapPlacementManager.Instance.MakeChosenTrapsPlaceable();
         _Animator.SetBool("IsToggle", false);
         CloseChest();
     }

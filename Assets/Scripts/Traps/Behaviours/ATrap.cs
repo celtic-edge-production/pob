@@ -31,8 +31,8 @@ public abstract class ATrap : NetworkBehaviour
     public Vector3Int cellPosition = new();
     // Server only: true once the preview has been shown on a valid cell (cellPosition is meaningful).
     [NonSerialized] public bool hasPreviewCell;
-    // Player who chose the trap (server only).
-    public ulong creatorId;
+    // Server only: the player who chose the trap (meaningful from TrapStage.Chosen on).
+    [NonSerialized] public ulong ChosenBy;
     // Set by each trap in Awake: its shape before any rotation.
     protected int[,] matrix;
     private TrapShape _shape;
@@ -40,9 +40,8 @@ public abstract class ATrap : NetworkBehaviour
     public TrapShape Shape => _shape ??= new TrapShape(matrix);
     public bool isBombTrap = false;
 
-    public NetworkVariable<bool> needToBeSelected = new NetworkVariable<bool>();
-    public NetworkVariable<bool> isSetable = new NetworkVariable<bool>();
-    public NetworkVariable<bool> isPlaced = new NetworkVariable<bool>();
+    // Server-written; every peer reacts to it (selection in the chest, phase 2 activation).
+    public NetworkVariable<TrapStage> Stage = new NetworkVariable<TrapStage>(TrapStage.InChest);
     public NetworkVariable<int> trapId = new NetworkVariable<int>();
     // Server-written during placement: false while the preview sits where the trap cannot be placed.
     public NetworkVariable<bool> isPreviewValid = new NetworkVariable<bool>(true);
@@ -73,11 +72,25 @@ public abstract class ATrap : NetworkBehaviour
 
     protected virtual void Start()
     {
-        if (IsServer)
-        {
-            isPlaced.Value = false;
-            needToBeSelected.Value = true;
-        }
+    }
+
+    // Server only. Refuses the moves TrapStageRules does not allow (skipping a step, going back).
+    public bool TrySetStage(TrapStage next)
+    {
+        if (!IsServer || !TrapStageRules.CanMove(Stage.Value, next))
+            return false;
+
+        Stage.Value = next;
+        return true;
+    }
+
+    // Every peer: collisions and animations are only on while the trap is active (phase 2).
+    private void OnStageChanged(TrapStage previous, TrapStage current)
+    {
+        if (current == TrapStage.Active)
+            _state |= TrapState.Collide | TrapState.Animate;
+        else if (previous == TrapStage.Active)
+            _state &= ~(TrapState.Collide | TrapState.Animate);
     }
 
     public override void OnNetworkSpawn()
@@ -89,6 +102,11 @@ public abstract class ATrap : NetworkBehaviour
 
         isPreviewValid.OnValueChanged += OnPreviewValidityChanged;
         ApplyPreviewTint(isPreviewValid.Value);
+
+        Stage.OnValueChanged += OnStageChanged;
+        // A peer joining while the trap is already live gets the right state at once.
+        if (Stage.Value == TrapStage.Active)
+            OnStageChanged(TrapStage.Placed, TrapStage.Active);
     }
 
     public override void OnNetworkDespawn()
@@ -99,6 +117,7 @@ public abstract class ATrap : NetworkBehaviour
             AudioSource.PlayClipAtPoint(_destroyAudioClip, transform.position);
 
         isPreviewValid.OnValueChanged -= OnPreviewValidityChanged;
+        Stage.OnValueChanged -= OnStageChanged;
 
         DestroyTrap();
         base.OnNetworkDespawn();
@@ -128,7 +147,7 @@ public abstract class ATrap : NetworkBehaviour
         // Applied to every trap: no animation and no collision outside phase 2.
         ApplyStateToComponents();
 
-        if (_boxColliderOverMouse == null || !needToBeSelected.Value)
+        if (_boxColliderOverMouse == null || Stage.Value != TrapStage.InChest)
             return;
 
         _mousePosition = TrapUtils.GetMousePosition();
@@ -186,17 +205,5 @@ public abstract class ATrap : NetworkBehaviour
 
         transform.Rotate(new Vector3(0, 0, 90 * rotationStep));
         _shape = Shape.Rotated(rotationStep);
-    }
-
-    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
-    public void ActivateCollideStateClientRpc()
-    {
-        _state |= TrapState.Collide | TrapState.Animate;
-    }
-
-    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
-    public void UnActivateCollideStateClientRpc()
-    {
-        _state &= ~(TrapState.Collide | TrapState.Animate);
     }
 }

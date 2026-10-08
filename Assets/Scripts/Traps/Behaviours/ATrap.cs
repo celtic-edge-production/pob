@@ -44,6 +44,13 @@ public abstract class ATrap : NetworkBehaviour
     public NetworkVariable<bool> isSetable = new NetworkVariable<bool>();
     public NetworkVariable<bool> isPlaced = new NetworkVariable<bool>();
     public NetworkVariable<int> trapId = new NetworkVariable<int>();
+    // Server-written during placement: false while the preview sits where the trap cannot be placed.
+    public NetworkVariable<bool> isPreviewValid = new NetworkVariable<bool>(true);
+
+    [Tooltip("Multiplied with the sprite colours while the preview is on a cell where the trap cannot be placed.")]
+    [SerializeField] private Color _invalidPreviewTint = new Color(1f, 0.35f, 0.35f, 0.6f);
+    private SpriteRenderer[] _renderers;
+    private Color[] _baseColors;
 
     // True while the trap is live (phase 2): behaviours only run then.
     protected bool IsActive => (_state & TrapState.Collide) == TrapState.Collide;
@@ -57,6 +64,11 @@ public abstract class ATrap : NetworkBehaviour
         _animator = GetComponent<Animator>();
         _previousState = _state;
         _animator.enabled = true;
+
+        _renderers = GetComponentsInChildren<SpriteRenderer>(true);
+        _baseColors = new Color[_renderers.Length];
+        for (int i = 0; i < _renderers.Length; i++)
+            _baseColors[i] = _renderers[i].color;
     }
 
     protected virtual void Start()
@@ -74,6 +86,9 @@ public abstract class ATrap : NetworkBehaviour
 
         // A new trap means a new game (or a new placement phase): destroy sounds are allowed again.
         MuteDestroySound = false;
+
+        isPreviewValid.OnValueChanged += OnPreviewValidityChanged;
+        ApplyPreviewTint(isPreviewValid.Value);
     }
 
     public override void OnNetworkDespawn()
@@ -83,12 +98,29 @@ public abstract class ATrap : NetworkBehaviour
         if (_destroyAudioClip != null && !MuteDestroySound)
             AudioSource.PlayClipAtPoint(_destroyAudioClip, transform.position);
 
+        isPreviewValid.OnValueChanged -= OnPreviewValidityChanged;
+
         DestroyTrap();
         base.OnNetworkDespawn();
     }
 
     protected virtual void DestroyTrap()
     {
+    }
+
+    private void OnPreviewValidityChanged(bool previous, bool valid)
+    {
+        ApplyPreviewTint(valid);
+    }
+
+    // Every peer: the preview turns red where the trap cannot be placed.
+    private void ApplyPreviewTint(bool valid)
+    {
+        for (int i = 0; i < _renderers.Length; i++)
+        {
+            if (_renderers[i] != null)
+                _renderers[i].color = valid ? _baseColors[i] : _baseColors[i] * _invalidPreviewTint;
+        }
     }
 
     protected virtual void Update()

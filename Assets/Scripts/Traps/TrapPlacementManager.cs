@@ -75,6 +75,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
             Debug.LogWarning("[TrapPlacementManager] Assign the zone tilemap in the Inspector.");
         }
 
+        // Traps may go on every painted cell of the zone tilemap: walls must be left unpainted.
         _grid = new TrapGrid(cell => _paternTileMap.HasTile(cell));
 
         _gameObjectArray = Resources.LoadAll<ATrap>("Prefabs/Traps/Traps");
@@ -181,20 +182,16 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
         Vector3Int cellPosition = _paternTileMap.WorldToCell(worldPosition);
 
-        // The preview only follows the mouse where the whole shape fits in the allowed zone.
-        if (!_grid.IsInsideZone(trap.Shape, cellPosition))
-            return;
-
         if (trap.hasPreviewCell && trap.cellPosition == cellPosition)
             return;
 
-        if (debug)
+        if (debug && trap.hasPreviewCell)
             UnDrawLastTiles(trap);
 
-        trap.cellPosition = cellPosition;
-        trap.hasPreviewCell = true;
+        // The preview follows the mouse everywhere, forbidden cells included (it turns red there):
+        // a click on a forbidden cell is refused instead of placing the trap at the edge of the zone.
+        MovePreview(trap, cellPosition);
         DrawShapeOfTrap(cellPosition, trap);
-        trap.transform.position = GetPreviewPosition(cellPosition, trap);
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
@@ -211,10 +208,10 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
             UnDrawLastTiles(trap);
 
         trap.RotateShape(position);
-        // Re-centre the preview for the new shape. If it no longer fits here, it stays put
-        // and PlaceTrap refuses it until the player moves to a cell where it fits.
-        if (trap.hasPreviewCell && _grid.IsInsideZone(trap.Shape, trap.cellPosition))
-            trap.transform.position = GetPreviewPosition(trap.cellPosition, trap);
+
+        // Re-centred for the new shape, and checked again: it may no longer fit here.
+        if (trap.hasPreviewCell)
+            MovePreview(trap, trap.cellPosition);
     }
 
     // The trap is placed where its preview is, never at a position sent by the client:
@@ -357,6 +354,23 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     #region Grid
 
+    // Server only: moves the preview to this cell and tells every peer whether it can be placed there.
+    private void MovePreview(ATrap trap, Vector3Int cellPosition)
+    {
+        trap.cellPosition = cellPosition;
+        trap.hasPreviewCell = true;
+        trap.transform.position = GetPreviewPosition(cellPosition, trap);
+        trap.isPreviewValid.Value = CanPlaceAt(trap, cellPosition);
+    }
+
+    // The bomb trap goes on top of another trap (it destroys it): it only needs the zone.
+    private bool CanPlaceAt(ATrap trap, Vector3Int origin)
+    {
+        return trap.isBombTrap
+            ? _grid.IsInsideZone(trap.Shape, origin)
+            : _grid.CanPlace(trap.Shape, origin);
+    }
+
     private bool PlaceTrap(ATrap trap)
     {
         if (!trap.hasPreviewCell || trap.isPlaced.Value)
@@ -364,18 +378,22 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
         Vector3Int origin = trap.cellPosition;
 
-        // Re-checked here: a rotation since the last preview may have changed the shape.
+        // Re-checked here: the preview may sit on a forbidden cell, or another trap may have been
+        // placed there since.
         if (!_grid.IsInsideZone(trap.Shape, origin))
             return false;
 
         if (trap.isBombTrap)
         {
+            trap.isPreviewValid.Value = true;
             ((BombTrap)trap).ExplodeBomb(origin);
             return true;
         }
 
         if (!_grid.TryPlace(trap.trapId.Value, trap.Shape, origin))
             return false;
+
+        trap.isPreviewValid.Value = true;
 
         if (debug)
             ColorCells(_grid.GetCellsOf(trap.trapId.Value), Color.red);

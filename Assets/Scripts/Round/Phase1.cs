@@ -1,4 +1,3 @@
-using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -6,7 +5,14 @@ public class Phase1 : APhase
 {
     [SerializeField] private GameObject _TrapChestPrefab;
 
-    private TrapChest _TrapChest;
+    private TrapSelection _trapSelection;
+
+    private void Awake()
+    {
+        // Runs the chest sequence; added at runtime so the scene needs no extra setup.
+        if (!TryGetComponent(out _trapSelection))
+            _trapSelection = gameObject.AddComponent<TrapSelection>();
+    }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
     public override void StartPhaseServerRpc()
@@ -14,19 +20,10 @@ public class Phase1 : APhase
         //ResetCameraClientRpc();
 
         SwitchTileMapStateClientRpc(false);
-
-        _TrapChest = Instantiate(_TrapChestPrefab).GetComponent<TrapChest>();
-        _TrapChest.transform.position = Vector3.zero;
-
-        NetworkObject networkObject = _TrapChest.GetComponent<NetworkObject>();
-        if (networkObject != null)
-            networkObject.Spawn();
-        else
-            Debug.LogError("TrapChest Prefab must have a NetworkObject component.");
-
         SetPlayersPlaying(false);
-        StartCoroutine(OpenChest());
         TrapPlacementManager.Instance.DeactivateTraps();
+
+        _trapSelection.Begin(_TrapChestPrefab);
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
@@ -40,11 +37,5 @@ public class Phase1 : APhase
             if (mainCameraController != null)
                 mainCameraController.ResetCamera();
         }
-    }
-
-    private IEnumerator OpenChest()
-    {
-        yield return new WaitForSeconds(3);
-        _TrapChest.OpenChest();
     }
 }

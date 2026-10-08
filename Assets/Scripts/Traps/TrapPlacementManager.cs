@@ -6,7 +6,8 @@ using UnityEngine.Tilemaps;
 
 // Server-side trap flow of phase 1: the chest offers one trap per player, each player picks
 // one, previews it inside the allowed zone, then places it. Also hides, activates and
-// despawns the placed traps for the other phases.
+// despawns the placed traps for the other phases. The chest sequence itself (open, wait for
+// every choice, close) is run by TrapSelection.
 // Each trap carries its own TrapStage; this manager only keeps the list of the traps it spawned.
 // While a player holds a trap he owns it and moves it himself (TilemapHover): the server only
 // tells him whether the preview is valid, and checks everything again when he places it.
@@ -90,8 +91,6 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         TilemapHover hover = cursor.GetComponent<TilemapHover>();
         hover.isSettingTrap.Value = true;
         hover.canPlaceTrap.Value = true;
-
-        CloseChestIfEveryoneChose();
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
@@ -150,30 +149,23 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     #region Chest flow (server only)
 
-    // Called when the chest UI has opened: one trap per connected player.
-    public void CreateTrapsForSelection()
+    // Server only (TrapSelection): the chest offers one trap per connected player, spread over its UI.
+    public void CreateTrapsForSelection(RectTransform spawnArea)
     {
         if (!IsServer)
             return;
 
         int numberOfPlayers = NetworkManager.Singleton.ConnectedClients.Count;
         for (int i = 0; i < numberOfPlayers; i++)
-            CreateTrapToBeSelected();
+            CreateTrapToBeSelected(spawnArea);
 
         _isPlacementPhaseRunning = true;
     }
 
-    private void CreateTrapToBeSelected()
+    private void CreateTrapToBeSelected(RectTransform spawnArea)
     {
-        if (TrapChest.Current == null || TrapChest.Current.Image == null)
-            return;
-
-        RectTransform chestUiRect = TrapChest.Current.Image.GetComponent<RectTransform>();
-        if (chestUiRect == null)
-            return;
-
-        float halfWidth = chestUiRect.rect.width / 2;
-        float halfHeight = chestUiRect.rect.height / 2;
+        float halfWidth = spawnArea.rect.width / 2;
+        float halfHeight = spawnArea.rect.height / 2;
         float spawnWidth = halfWidth - _OffsetSpawn < 0 ? halfWidth : halfWidth - _OffsetSpawn;
         float spawnHeight = halfHeight - _OffsetSpawn < 0 ? halfHeight : halfHeight - _OffsetSpawn;
 
@@ -188,19 +180,25 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         _traps.Add(trap);
     }
 
-    private void CloseChestIfEveryoneChose()
+    // Server only (TrapSelection): the chest can close once no trap is left in it. A player who leaves
+    // before choosing takes his spare trap with him (HandlePlayerLeft), so the others never wait for him.
+    public bool EveryoneHasChosen
     {
-        if (NetworkManager.Singleton.ConnectedClients.Count != CountTraps(TrapStage.Chosen))
-            return;
+        get
+        {
+            if (!_isPlacementPhaseRunning)
+                return false;
 
-        if (TrapChest.Current == null || TrapChest.Current.Image == null)
-            return;
-
-        TrapChest.Current.Image.GetComponent<ChestUi>().StartClosingAnimation();
-        ShowAllPlacedTrapClientRpc();
+            foreach (ATrap trap in Traps())
+            {
+                if (trap.Stage.Value == TrapStage.InChest)
+                    return false;
+            }
+            return true;
+        }
     }
 
-    // Called when the chest UI has closed: the chosen traps can now be placed.
+    // Server only (TrapSelection): the chest has closed, the chosen traps can now be placed.
     public void MakeChosenTrapsPlaceable()
     {
         foreach (ATrap trap in Traps())
@@ -208,6 +206,9 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
             if (trap.Stage.Value == TrapStage.Chosen)
                 trap.TrySetStage(TrapStage.Placing);
         }
+
+        // Nothing to place (every holder left meanwhile): phase 2 starts right away.
+        EndPlacementPhaseIfDone();
     }
 
     public void HandlePlayerLeft(ulong clientId)
@@ -225,13 +226,10 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         }
 
         // Case 2: the player had not chosen yet. The chest holds one trap per player, so drop a
-        // spare one, then re-run the "everyone has chosen" check he would have triggered.
+        // spare one: TrapSelection then sees that everyone left has chosen.
         ATrap spare = FindTrap(t => t.Stage.Value == TrapStage.InChest);
         if (spare != null)
-        {
             Despawn(spare);
-            CloseChestIfEveryoneChose();
-        }
 
         // Case 3: his trap was already placed. Nothing to do, it stays on the map.
     }
@@ -355,6 +353,12 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     {
         if (IsServer)
             HideAllPlacedTrapClientRpc();
+    }
+
+    public void ShowAllPlacedTraps()
+    {
+        if (IsServer)
+            ShowAllPlacedTrapClientRpc();
     }
 
     public void ActivateTraps()

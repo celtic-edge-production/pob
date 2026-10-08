@@ -2,83 +2,45 @@ using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
-// The chest spawned at the start of phase 1. Its animation events drive the chest UI.
+// The chest spawned at the start of phase 1. Only plays its animations and sounds: the sequence
+// is run by TrapSelection, which reads HasOpened / HasClosed (set by the animation events).
 public class TrapChest : NetworkBehaviour
 {
-    // The chest currently spawned, if any (one per phase 1).
-    public static TrapChest Current { get; private set; }
-
-    public GameObject Image;
-
     [SerializeField] private AudioClip _OpenSoundAudioClip;
     [SerializeField] private AudioClip _CloseSoundAudioClip;
 
     private Animator _Animator;
 
-    public override void OnNetworkSpawn()
-    {
-        base.OnNetworkSpawn();
-        Current = this;
-    }
+    // Server only.
+    public bool HasOpened { get; private set; }
+    public bool HasClosed { get; private set; }
 
-    public override void OnNetworkDespawn()
+    private void Awake()
     {
-        if (Current == this)
-            Current = null;
-
-        base.OnNetworkDespawn();
+        _Animator = GetComponent<Animator>();
     }
 
     private void Start()
     {
-        _Animator = GetComponent<Animator>();
-
-        // The chest UI lives in the level scene and starts inactive: find it by type, inactive included.
-        ChestUi chestUi = FindFirstObjectByType<ChestUi>(FindObjectsInactive.Include);
-        if (chestUi != null)
-            Image = chestUi.gameObject;
-        else
-            Debug.LogError("[TrapChest] No ChestUi found in the scene.");
-
-        TrapPlacementManager.Instance.HideAllPlacedTraps();
-
         transform.localPosition = Vector3.zero;
     }
 
-    // Server only (called by Phase1).
-    public void OpenChest()
+    // Server only.
+    public void PlayOpen()
     {
-        if (!IsServer)
-            return;
-
+        HasOpened = false;
         _Animator.SetBool("Open", true);
     }
 
-    // Animation event: end of the chest opening animation.
-    public void OnChestOpen()
+    // Server only.
+    public void PlayClose()
     {
-        if (!IsServer)
-            return;
-
-        Image.SetActive(true);
-
-        // The traps are spawned at the end of the UI opening animation (ChestUi.OnUIOpen).
-        Animator uiAnimator = Image.GetComponent<Animator>();
-        uiAnimator.SetBool("IsToggle", true);
-        uiAnimator.SetBool("IsOpening", true);
-    }
-
-    // Animation event: end of the UI closing animation.
-    public void UiClosed()
-    {
-        if (!IsServer)
-            return;
-
+        HasClosed = false;
         _Animator.SetBool("Open", false);
     }
 
-    // Animation event: end of the chest closing animation.
-    public void OnChestClose()
+    // Server only: hides the chest, widens the camera for the placement, then despawns.
+    public void Leave()
     {
         if (!IsServer)
             return;
@@ -86,6 +48,30 @@ public class TrapChest : NetworkBehaviour
         GetComponent<SpriteRenderer>().enabled = false;
         ChangeCameraClientRpc();
         StartCoroutine(DespawnAfterDelay());
+    }
+
+    // Animation event: end of the chest opening animation.
+    public void OnChestOpen()
+    {
+        if (IsServer)
+            HasOpened = true;
+    }
+
+    // Animation events still present in the clips (OpenChest is on the "OpenChest" animation);
+    // the sequence no longer needs them, they are kept so the clips find a receiver.
+    public void OpenChest()
+    {
+    }
+
+    public void UiClosed()
+    {
+    }
+
+    // Animation event: end of the chest closing animation.
+    public void OnChestClose()
+    {
+        if (IsServer)
+            HasClosed = true;
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
@@ -99,7 +85,9 @@ public class TrapChest : NetworkBehaviour
     private IEnumerator DespawnAfterDelay()
     {
         yield return new WaitForSeconds(1.0f);
-        NetworkObject.Despawn(true);
+
+        if (IsSpawned)
+            NetworkObject.Despawn(true);
     }
 
     // Animation event.

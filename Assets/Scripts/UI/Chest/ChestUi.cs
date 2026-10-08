@@ -1,9 +1,15 @@
 using Unity.Netcode;
 using UnityEngine;
 
+// The chest's UI, where the offered traps appear. Only plays its animations: the sequence is run
+// by TrapSelection, which reads HasOpened / HasClosed (set by the animation events).
 public class ChestUi : NetworkBehaviour
 {
     private Animator _Animator;
+
+    // Server only.
+    public bool HasOpened { get; private set; }
+    public bool HasClosed { get; private set; }
 
     private void Awake()
     {
@@ -12,41 +18,40 @@ public class ChestUi : NetworkBehaviour
         _Animator.SetBool("IsToggle", false);
     }
 
-    // Animation event, end of the opening animation. Server only.
-    public void OnUIOpen()
+    // Server only. The UI starts inactive: activating it runs Awake first.
+    public void PlayOpen()
     {
-        if (!IsServer)
-            return;
-
-        TrapPlacementManager.Instance.CreateTrapsForSelection();
+        HasOpened = false;
+        gameObject.SetActive(true);
+        _Animator.SetBool("IsToggle", true);
+        _Animator.SetBool("IsOpening", true);
     }
 
-    // Animation event, end of the closing animation. Server only.
-    public void OnUIClose()
+    // Server only.
+    public void PlayClose()
     {
-        if (!IsServer)
-            return;
-
-        TrapPlacementManager.Instance.MakeChosenTrapsPlaceable();
-        _Animator.SetBool("IsToggle", false);
-        CloseChest();
-    }
-
-    // Server only: called once every player has chosen a trap.
-    public void StartClosingAnimation()
-    {
+        HasClosed = false;
         _Animator.SetBool("IsOpening", false);
         _Animator.SetBool("IsToggle", true);
     }
 
-    private void CloseChest()
+    // Server only: back to rest once the closing animation is over.
+    public void EndClose()
     {
-        if (TrapChest.Current == null)
-        {
-            Debug.LogError("[ChestUi] No chest spawned.");
-            return;
-        }
+        _Animator.SetBool("IsToggle", false);
+    }
 
-        TrapChest.Current.GetComponent<Animator>().SetBool("Open", false);
+    // Animation event: end of the opening animation.
+    public void OnUIOpen()
+    {
+        if (IsServer)
+            HasOpened = true;
+    }
+
+    // Animation event: end of the closing animation.
+    public void OnUIClose()
+    {
+        if (IsServer)
+            HasClosed = true;
     }
 }

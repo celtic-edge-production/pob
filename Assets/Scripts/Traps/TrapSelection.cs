@@ -28,6 +28,15 @@ public class TrapSelection : MonoBehaviour
         _sequence = StartCoroutine(RunSequence(chestPrefab));
     }
 
+    // False once the session stops (quit, disconnect, back to the lobby) or the chest is gone:
+    // the sequence must not send anything any more.
+    private static bool IsSessionRunning(TrapChest chest)
+    {
+        NetworkManager networkManager = NetworkManager.Singleton;
+        return networkManager != null && networkManager.IsListening && !networkManager.ShutdownInProgress
+            && chest != null && chest.IsSpawned;
+    }
+
     private IEnumerator RunSequence(GameObject chestPrefab)
     {
         TrapPlacementManager traps = TrapPlacementManager.Instance;
@@ -48,29 +57,41 @@ public class TrapSelection : MonoBehaviour
         traps.HideAllPlacedTraps();
 
         yield return new WaitForSeconds(_delayBeforeOpening);
+        if (!IsSessionRunning(chest))
+            yield break;
 
         // 1. The chest opens, then its UI.
         chest.PlayOpen();
-        yield return WaitForAnimation(() => chest.HasOpened, "chest opening");
+        yield return WaitForAnimation(() => chest.HasOpened || !IsSessionRunning(chest), "chest opening");
+        if (!IsSessionRunning(chest))
+            yield break;
 
         chestUi.PlayOpen();
-        yield return WaitForAnimation(() => chestUi.HasOpened, "chest UI opening");
+        yield return WaitForAnimation(() => chestUi.HasOpened || !IsSessionRunning(chest), "chest UI opening");
+        if (!IsSessionRunning(chest))
+            yield break;
 
         // 2. One trap per player, then wait until every player still here has chosen.
         traps.CreateTrapsForSelection(chestUi.GetComponent<RectTransform>());
-        yield return new WaitUntil(() => traps.EveryoneHasChosen);
+        yield return new WaitUntil(() => traps.EveryoneHasChosen || !IsSessionRunning(chest));
+        if (!IsSessionRunning(chest))
+            yield break;
 
         // 3. The UI closes and the placed traps come back; the chosen traps can now be placed.
         traps.ShowAllPlacedTraps();
         chestUi.PlayClose();
-        yield return WaitForAnimation(() => chestUi.HasClosed, "chest UI closing");
+        yield return WaitForAnimation(() => chestUi.HasClosed || !IsSessionRunning(chest), "chest UI closing");
+        if (!IsSessionRunning(chest))
+            yield break;
 
         chestUi.EndClose();
         traps.MakeChosenTrapsPlaceable();
 
         // 4. The chest closes and leaves.
         chest.PlayClose();
-        yield return WaitForAnimation(() => chest.HasClosed, "chest closing");
+        yield return WaitForAnimation(() => chest.HasClosed || !IsSessionRunning(chest), "chest closing");
+        if (!IsSessionRunning(chest))
+            yield break;
 
         chest.Leave();
         _sequence = null;

@@ -52,7 +52,10 @@ public class PhaseManager : NetworkBehaviour
     private ulong[] _survivorIds = Array.Empty<ulong>();
     private bool _scoreboardClosed;
 
-    private static bool IsGameOver => GameRoundManager.Instance == null || GameRoundManager.Instance.IsGameOver;
+    // Also true once the session stops (quit, disconnect): the sequence must not send anything any more.
+    private static bool IsGameOver =>
+        GameRoundManager.Instance == null || GameRoundManager.Instance.IsGameOver
+        || NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening || NetworkManager.Singleton.ShutdownInProgress;
 
     private void Start()
     {
@@ -96,9 +99,13 @@ public class PhaseManager : NetworkBehaviour
         GameRoundManager rounds = GameRoundManager.Instance;
 
         yield return new WaitForSeconds(_startDelay);
+        if (IsGameOver)
+            yield break;
+
         ResetCharactersPosition();
 
-        while (!IsGameOver)
+        // Left only by "break" when the game is won; every other stop ends the coroutine.
+        while (true)
         {
             // Phase 1: chest, choice and placement of the traps.
             _placementDone = false;
@@ -114,6 +121,9 @@ public class PhaseManager : NetworkBehaviour
             phase2.Begin();
             StartCoroutine(ActivateTrapsAfterDelay());
             yield return Countdown();
+            if (IsGameOver)
+                yield break;
+
             rounds.StartNewRound();
             yield return new WaitUntil(() => _roundEnded || IsGameOver);
             if (IsGameOver)
@@ -123,6 +133,9 @@ public class PhaseManager : NetworkBehaviour
             _scoreboardClosed = false;
             _currentPhase.Value = GamePhase.Scoreboard;
             yield return new WaitForSeconds(_scoreSyncDelay);
+            if (IsGameOver)
+                yield break;
+
             rounds.ShowScoreboardClientRpc(_survivorIds);
             yield return WaitOrTimeout(() => _scoreboardClosed || IsGameOver, _scoreboardTimeout, "scoreboard closing");
             yield return new WaitForSeconds(_afterScoreboardDelay);
@@ -143,20 +156,30 @@ public class PhaseManager : NetworkBehaviour
         _currentPhase.Value = GamePhase.EndPhase;
         endGame.Begin();
         yield return new WaitForSeconds(endGame.DisplayDuration);
-        rounds.LoadLobby();
+
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            rounds.LoadLobby();
     }
 
     private IEnumerator Countdown()
     {
         for (int secondsLeft = _countdownSeconds; secondsLeft > 0; secondsLeft--)
         {
+            if (IsGameOver)
+                yield break;
+
             phase2.ShowCountdownClientRpc(secondsLeft.ToString());
             yield return new WaitForSeconds(1f);
         }
 
+        if (IsGameOver)
+            yield break;
+
         phase2.ShowCountdownClientRpc("Go!");
         yield return new WaitForSeconds(_goDisplayTime);
-        phase2.ShowCountdownClientRpc("");
+
+        if (!IsGameOver)
+            phase2.ShowCountdownClientRpc("");
     }
 
     // Runs alongside the countdown.

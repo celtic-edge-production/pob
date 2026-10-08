@@ -33,7 +33,11 @@ public abstract class ATrap : NetworkBehaviour
     [NonSerialized] public bool hasPreviewCell;
     // Player who chose the trap (server only).
     public ulong creatorId;
-    public int[,] matrix;
+    // Set by each trap in Awake: its shape before any rotation.
+    protected int[,] matrix;
+    private TrapShape _shape;
+    // Current shape on the grid, rotations included (server side, during placement).
+    public TrapShape Shape => _shape ??= new TrapShape(matrix);
     public bool isBombTrap = false;
 
     public NetworkVariable<bool> needToBeSelected = new NetworkVariable<bool>();
@@ -143,45 +147,13 @@ public abstract class ATrap : NetworkBehaviour
             AudioSource.PlayClipAtPoint(_actionSound, position);
     }
 
+    // Server only (placement): turns the sprite and the shape by quarter turns, counterclockwise.
     public void RotateShape(int direction)
     {
-        int dimensionY = matrix.GetLength(0);
-        int dimensionX = matrix.GetLength(1);
-        int[,] newMatrix;
-
-        // Keep the step between 0 and 3 quarter turns (counterclockwise).
-        int rotationStep = direction % 4;
-        if (rotationStep < 0)
-            rotationStep += 4;
+        int rotationStep = ((direction % 4) + 4) % 4;
 
         transform.Rotate(new Vector3(0, 0, 90 * rotationStep));
-
-        switch (rotationStep)
-        {
-            case 1: // 90 degrees counterclockwise
-                newMatrix = new int[dimensionX, dimensionY];
-                for (int y = 0; y < dimensionY; y++)
-                    for (int x = 0; x < dimensionX; x++)
-                        newMatrix[dimensionX - x - 1, y] = matrix[y, x];
-                break;
-            case 2: // 180 degrees
-                newMatrix = new int[dimensionY, dimensionX];
-                for (int y = 0; y < dimensionY; y++)
-                    for (int x = 0; x < dimensionX; x++)
-                        newMatrix[dimensionY - y - 1, dimensionX - x - 1] = matrix[y, x];
-                break;
-            case 3: // 270 degrees counterclockwise
-                newMatrix = new int[dimensionX, dimensionY];
-                for (int y = 0; y < dimensionY; y++)
-                    for (int x = 0; x < dimensionX; x++)
-                        newMatrix[x, dimensionY - y - 1] = matrix[y, x];
-                break;
-            default:
-                newMatrix = (int[,])matrix.Clone();
-                break;
-        }
-
-        matrix = newMatrix;
+        _shape = Shape.Rotated(rotationStep);
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]

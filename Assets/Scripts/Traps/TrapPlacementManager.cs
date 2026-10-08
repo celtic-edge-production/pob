@@ -43,17 +43,18 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         }
     }
 
-    [SerializeField] private Sprite _sprite;
+    [Tooltip("Colours the preview (green) and the occupied cells (red) on the zone tilemap.")]
     [SerializeField] private bool debug = false;
     [SerializeField] PhaseManager _PhaseManager;
     [SerializeField] private float _OffsetSpawn = 100.0f;
 
     [Header("Tilemaps")]
-    [Tooltip("Server-side record of the cells occupied by placed traps.")]
-    [SerializeField] private Tilemap _trapTileMap;
     [Tooltip("The zone where traps may be placed.")]
     [SerializeField] private Tilemap _paternTileMap;
     private ATrap[] _gameObjectArray;
+
+    // Server only: which placed trap covers each cell.
+    private TrapGrid _grid;
 
     NetworkVariable<int> _lastId = new NetworkVariable<int>();
     NetworkList<TrapData> _placedTrap = new();
@@ -67,18 +68,14 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     protected override void OnSingletonAwake()
     {
-        // Fallback for levels where the tilemaps are not assigned in the Inspector yet.
-        if (_trapTileMap == null)
-        {
-            _trapTileMap = GameObject.Find("Trap").GetComponent<Tilemap>();
-            Debug.LogWarning("[TrapPlacementManager] Assign the trap tilemap in the Inspector.");
-        }
-
+        // Fallback for levels where the zone tilemap is not assigned in the Inspector yet.
         if (_paternTileMap == null)
         {
             _paternTileMap = GameObject.Find("Background").GetComponent<Tilemap>();
             Debug.LogWarning("[TrapPlacementManager] Assign the zone tilemap in the Inspector.");
         }
+
+        _grid = new TrapGrid(cell => _paternTileMap.HasTile(cell));
 
         _gameObjectArray = Resources.LoadAll<ATrap>("Prefabs/Traps/Traps");
     }
@@ -185,7 +182,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         Vector3Int cellPosition = _paternTileMap.WorldToCell(worldPosition);
 
         // The preview only follows the mouse where the whole shape fits in the allowed zone.
-        if (!IsShapeInsideZone(cellPosition, trap))
+        if (!_grid.IsInsideZone(trap.Shape, cellPosition))
             return;
 
         if (trap.hasPreviewCell && trap.cellPosition == cellPosition)
@@ -216,7 +213,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         trap.RotateShape(position);
         // Re-centre the preview for the new shape. If it no longer fits here, it stays put
         // and PlaceTrap refuses it until the player moves to a cell where it fits.
-        if (trap.hasPreviewCell && IsShapeInsideZone(trap.cellPosition, trap))
+        if (trap.hasPreviewCell && _grid.IsInsideZone(trap.Shape, trap.cellPosition))
             trap.transform.position = GetPreviewPosition(trap.cellPosition, trap);
     }
 
@@ -360,38 +357,6 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     #region Grid
 
-    private static IEnumerable<Vector3Int> GetShapeCells(Vector3Int origin, ATrap trap)
-    {
-        for (int i = 0; i < trap.matrix.GetLength(0); i++)
-        {
-            for (int j = 0; j < trap.matrix.GetLength(1); j++)
-            {
-                if (trap.matrix[i, j] == 1)
-                    yield return new Vector3Int(origin.x + j, origin.y - i, 0);
-            }
-        }
-    }
-
-    private bool IsShapeInsideZone(Vector3Int origin, ATrap trap)
-    {
-        foreach (Vector3Int cell in GetShapeCells(origin, trap))
-        {
-            if (!_paternTileMap.HasTile(cell))
-                return false;
-        }
-        return true;
-    }
-
-    private bool IsAreaFreeOfTraps(Vector3Int origin, ATrap trap)
-    {
-        foreach (Vector3Int cell in GetShapeCells(origin, trap))
-        {
-            if (_trapTileMap.HasTile(cell))
-                return false;
-        }
-        return true;
-    }
-
     private bool PlaceTrap(ATrap trap)
     {
         if (!trap.hasPreviewCell || trap.isPlaced.Value)
@@ -400,7 +365,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         Vector3Int origin = trap.cellPosition;
 
         // Re-checked here: a rotation since the last preview may have changed the shape.
-        if (!IsShapeInsideZone(origin, trap))
+        if (!_grid.IsInsideZone(trap.Shape, origin))
             return false;
 
         if (trap.isBombTrap)
@@ -409,21 +374,11 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
             return true;
         }
 
-        if (!IsAreaFreeOfTraps(origin, trap))
+        if (!_grid.TryPlace(trap.trapId.Value, trap.Shape, origin))
             return false;
 
-        TrapTile trapTile = ScriptableObject.CreateInstance<TrapTile>();
-        trapTile.trapPrefab = trap;
-        trapTile.id = trap.trapId.Value;
-
         if (debug)
-            trapTile.sprite = _sprite;
-
-        foreach (Vector3Int cell in GetShapeCells(origin, trap))
-            _trapTileMap.SetTile(cell, trapTile);
-
-        if (debug)
-            UnDrawLastTiles(trap);
+            ColorCells(_grid.GetCellsOf(trap.trapId.Value), Color.red);
 
         trap.isPlaced.Value = true;
         _placedTrap.Add(new TrapData(trap.trapId.Value, trap.NetworkObjectId));
@@ -436,78 +391,56 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         if (!IsServer)
             return;
 
-        if (_trapTileMap.GetTile(cellPosition) is not TrapTile trapTile)
+        if (!_grid.TryGetTrapAt(cellPosition, out int trapId))
             return;
 
-        int id = trapTile.id;
+        if (debug)
+            ColorCells(_grid.GetCellsOf(trapId), Color.white);
 
+        _grid.Remove(trapId);
+
+        ATrap removedTrap = null;
         foreach (TrapData trapData in _placedTrap)
         {
-            if (trapData.trapId == id)
+            if (trapData.trapId == trapId)
             {
+                removedTrap = GetTrapFromNetworkId(trapData.networkObjectId);
                 _placedTrap.Remove(trapData);
                 break;
             }
         }
 
-        foreach (Vector3Int cell in _trapTileMap.cellBounds.allPositionsWithin)
-        {
-            if (_trapTileMap.GetTile(cell) is TrapTile tile && tile.id == id)
-                _trapTileMap.SetTile(cell, null);
-        }
-
-        if (trapTile.trapPrefab != null && trapTile.trapPrefab.IsSpawned)
-            trapTile.trapPrefab.NetworkObject.Despawn(true);
+        if (removedTrap != null && removedTrap.IsSpawned)
+            removedTrap.NetworkObject.Despawn(true);
 
         OnTrapRemoved?.Invoke();
     }
 
     private static Vector3 GetPreviewPosition(Vector3Int cellPosition, ATrap trap)
     {
-        float sizeX = trap.matrix.GetLength(1);
-        float sizeY = trap.matrix.GetLength(0);
-
-        if (sizeX > 1 && sizeY > 1)
-        {
-            float offsetY = (sizeY % 2 == 0) ? sizeY / 2 - 1.0f : sizeY / 2 - 0.5f;
-            return cellPosition + new Vector3(sizeX / 2, -offsetY, 0);
-        }
-
-        if (sizeX > 1)
-            return cellPosition + new Vector3(sizeX / 2, 0.5f, 0);
-
-        if (sizeY > 1)
-        {
-            float offsetY = (sizeY % 2 == 0) ? sizeY / 2 - 2.0f : sizeY / 2 - 1.0f;
-            return cellPosition + new Vector3(0.5f, -offsetY, 0);
-        }
-
-        return cellPosition + new Vector3(0.5f, 0.5f, 0);
+        return cellPosition + trap.Shape.GetPreviewOffset();
     }
 
+    // Debug only: the preview and the placed traps are drawn as colours on the zone tilemap.
     private void UnDrawLastTiles(ATrap trap)
     {
-        foreach (Vector3Int cell in GetShapeCells(trap.cellPosition, trap))
-        {
-            if (_paternTileMap.HasTile(cell))
-            {
-                _paternTileMap.SetTileFlags(cell, TileFlags.None);
-                _paternTileMap.SetColor(cell, Color.white);
-            }
-        }
+        ColorCells(trap.Shape.GetCells(trap.cellPosition), Color.white);
     }
 
     private void DrawShapeOfTrap(Vector3Int cellPosition, ATrap trap)
     {
-        if (!debug)
-            return;
+        if (debug)
+            ColorCells(trap.Shape.GetCells(cellPosition), Color.green);
+    }
 
-        foreach (Vector3Int cell in GetShapeCells(cellPosition, trap))
+    private void ColorCells(IEnumerable<Vector3Int> cells, Color color)
+    {
+        foreach (Vector3Int cell in cells)
         {
             if (_paternTileMap.HasTile(cell))
             {
                 _paternTileMap.SetTileFlags(cell, TileFlags.None);
-                _paternTileMap.SetColor(cell, Color.green);
+                _paternTileMap.SetColor(cell, color);
             }
         }
     }
@@ -546,6 +479,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     public void DespawnAllTraps()
     {
         MuteTrapDestroySoundsClientRpc();
+        _grid.Clear();
         DespawnTraps(_placedTrap);
         DespawnTraps(_notPlacedTrap);
         DespawnTraps(_notChoosedTrap);

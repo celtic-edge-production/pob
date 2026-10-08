@@ -5,10 +5,9 @@ public class APhase : NetworkBehaviour
 {
     [SerializeField] protected GameObject _SpawnTileMap;
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
-    virtual public void StartPhaseServerRpc()
+    // Server only, called by PhaseManager when the phase starts.
+    public virtual void Begin()
     {
-
     }
 
     // Server only. Phase 1 shows the cursors (trap placement), phase 2 the characters.

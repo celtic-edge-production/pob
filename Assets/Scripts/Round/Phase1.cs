@@ -14,11 +14,8 @@ public class Phase1 : APhase
             _trapSelection = gameObject.AddComponent<TrapSelection>();
     }
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
-    public override void StartPhaseServerRpc()
+    public override void Begin()
     {
-        //ResetCameraClientRpc();
-
         SwitchTileMapStateClientRpc(false);
         SetPlayersPlaying(false);
         TrapPlacementManager.Instance.DeactivateTraps();

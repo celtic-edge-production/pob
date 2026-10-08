@@ -1,20 +1,18 @@
-using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 using TMPro;
 
+// Phase 2: the characters are back and the round is played. The countdown and the trap
+// activation are timed by PhaseManager.
 public class Phase2 : APhase
 {
     public TMP_Text timer;
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
-    public override void StartPhaseServerRpc()
+    public override void Begin()
     {
         DesactivateCameraClientRpc();
         SwitchTileMapStateClientRpc(true);
         SetPlayersPlaying(true);
-        StartCoroutine(StartGameRound());
-        StartCoroutine(ActivateTraps());
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
@@ -25,33 +23,9 @@ public class Phase2 : APhase
             mainCamera.gameObject.SetActive(false);
     }
 
-    private IEnumerator StartGameRound()
-    {
-        for (int countdown = 5; countdown > 0; countdown--)
-        {
-            UpdateTimerClientRpc(countdown.ToString());
-            yield return new WaitForSeconds(1);
-        }
-
-        UpdateTimerClientRpc("Go!");
-        yield return new WaitForSeconds(1);
-
-        UpdateTimerClientRpc("");
-        GameRoundManager.Instance.StartNewRound();
-    }
-
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
-    private void UpdateTimerClientRpc(string text)
+    public void ShowCountdownClientRpc(string text)
     {
         timer.text = text;
-    }
-
-    private IEnumerator ActivateTraps()
-    {
-        yield return new WaitForSeconds(2);
-
-        // Revive everyone and rebuild the round's player list before the traps go live.
-        GameRoundManager.Instance.ResetPlayers();
-        TrapPlacementManager.Instance.ActivateTraps();
     }
 }

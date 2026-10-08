@@ -247,7 +247,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         }
 
         _isPlacementPhaseRunning = false;
-        _PhaseManager.SwitchGamePhaseServerRpc();
+        _PhaseManager.OnPlacementDone();
     }
 
     #endregion

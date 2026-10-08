@@ -79,7 +79,7 @@ public class Scoreboard : MonoBehaviour
             PlayerImage[i].GetComponent<Image>().gameObject.SetActive(false);
         }
 
-        StartCoroutine(_GameRoundManager.ChangePhase());
+        _GameRoundManager.OnScoreboardClosed();
         StartCoroutine(CleanScoreboard());
     }
 
@@ -127,7 +127,8 @@ public class Scoreboard : MonoBehaviour
             animator.Rebind();  // Resets the Animator to its initial state
             animator.Update(0f);
             animator.SetBool("IsAnimated", true);
-        } else
+        }
+        else
         {
             Debug.LogError("Cannot get the animator in setText()");
         }

@@ -343,8 +343,9 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         }
 
         // Sent with the RPC instead of being guessed from the score reasons on the clients.
+        // PhaseManager shows the scoreboard once the scores have reached the clients.
         ulong[] survivorIds = players.Where(p => p.IsAlive.Value).Select(p => p.OwnerClientId).ToArray();
-        StartCoroutine(ShowScoreboard(survivorIds));
+        _PhaseManager.OnRoundEnded(survivorIds);
     }
 
     public void HandlePlayerLeft(ulong clientId)
@@ -400,7 +401,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
         TrapPlacementManager.Instance.DespawnAllTraps();
         ShowGameMessageClientRpc("Not enough players left, back to the lobby...");
-        StartCoroutine(ReturnToLobby(5.0f));
+        StartCoroutine(ReturnToLobbyAfter(5.0f));
     }
 
     // NGO already detects in-place changes by comparing these collections with a copy on every
@@ -448,18 +449,10 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         }
     }
 
-    private IEnumerator ShowScoreboard(ulong[] survivorIds)
-    {
-        // Do not shorten carelessly: the scores travel through NetworkVariables (sent on the next
-        // network tick), not through this RPC. The delay guarantees every client has the final
-        // scores before the scoreboard reads them.
-        yield return new WaitForSeconds(3);
-
-        ShowScoreboardClientRpc(survivorIds);
-    }
-
+    // Called by PhaseManager after a delay: the scores travel through NetworkVariables (sent on the
+    // next network tick), not through this RPC, and must reach every client first.
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
-    private void ShowScoreboardClientRpc(ulong[] survivorIds)
+    public void ShowScoreboardClientRpc(ulong[] survivorIds)
     {
         PlayerIdentity[] identities = FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None);
 
@@ -487,35 +480,41 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         _Scoreboard.SwitchScoreboardState();
     }
 
-    public IEnumerator ChangePhase()
+    // Every peer, when its scoreboard has closed: only the host's tells PhaseManager.
+    public void OnScoreboardClosed()
     {
-        if (!IsHost || _isGameOver)
-            yield break;
+        if (IsServer)
+            _PhaseManager.OnScoreboardClosed();
+    }
 
-        yield return new WaitForSeconds(3);
-
-        // A player may have left during the wait and ended the game.
-        if (_isGameOver)
-            yield break;
-
+    // Server only (PhaseManager), after the scoreboard. Returns true when the game is won.
+    public bool FinishRound()
+    {
         DesactivateWinnerTextClientRpc();
 
         roundCount++;
-        if (roundCount >= _maxRounds || PlayerTotalScores.Value.Values.Any(score => score >= _maxScore))
-        {
+        if (IsGameWon(roundCount, _maxRounds, PlayerTotalScores.Value.Values, _maxScore))
             _isGameOver = true;
-            _PhaseManager.EndGame();
-        }
-        else
-        {
-            _PhaseManager.SwitchGamePhaseServerRpc();
-        }
+
+        return _isGameOver;
     }
 
-    public IEnumerator ReturnToLobby(float delay)
+    // Enough rounds played, or someone reached the target score.
+    public static bool IsGameWon(int roundsPlayed, int maxRounds, IEnumerable<int> totalScores, int maxScore)
+    {
+        return roundsPlayed >= maxRounds || totalScores.Any(score => score >= maxScore);
+    }
+
+    // Server only.
+    public void LoadLobby()
+    {
+        NetworkManager.Singleton.SceneManager.LoadScene("Lobby", LoadSceneMode.Single);
+    }
+
+    private IEnumerator ReturnToLobbyAfter(float delay)
     {
         yield return new WaitForSeconds(delay);
-        NetworkManager.Singleton.SceneManager.LoadScene("Lobby", LoadSceneMode.Single);
+        LoadLobby();
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]

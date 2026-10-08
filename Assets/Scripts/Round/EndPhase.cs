@@ -4,10 +4,12 @@ using UnityEngine;
 
 public class EndPhase : APhase
 {
+    [Tooltip("How long the winner is shown before going back to the lobby (waited by PhaseManager).")]
     [SerializeField] private float _displayDuration = 5f;
 
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
-    public override void StartPhaseServerRpc()
+    public float DisplayDuration => _displayDuration;
+
+    public override void Begin()
     {
         foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))
             player.Revive();
@@ -17,8 +19,6 @@ public class EndPhase : APhase
         // Built on the server: character names are the same on every peer.
         string message = BuildWinnerMessage(GameRoundManager.Instance.GetWinnerIds());
         GameRoundManager.Instance.ShowGameMessageClientRpc(message);
-
-        StartCoroutine(GameRoundManager.Instance.ReturnToLobby(_displayDuration));
     }
 
     private static string BuildWinnerMessage(ulong[] winnerIds)

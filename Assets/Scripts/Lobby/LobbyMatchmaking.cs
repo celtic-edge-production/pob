@@ -21,6 +21,16 @@ public class LobbyMatchmaking : MonoBehaviour
             Debug.LogError("LobbyMatchmaking: no backend available from NetworkBackendSelector.");
     }
 
+    private void Start()
+    {
+        // The previous session ended without the player asking (host gone): tell him why.
+        if (!string.IsNullOrEmpty(PlayerManager.PendingMenuMessage) && _MessageText != null)
+        {
+            _MessageText.text = PlayerManager.PendingMenuMessage;
+            PlayerManager.PendingMenuMessage = null;
+        }
+    }
+
     public void InitNetworkLobbyAndRelay()
     {
         if (_MessageText != null)

@@ -7,6 +7,9 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
 {
     private bool _isDisconnecting = false;
 
+    // Shown by the main menu after a session ended without the player asking (host gone).
+    public static string PendingMenuMessage { get; set; }
+
     protected override void OnSingletonAwake()
     {
     }
@@ -31,8 +34,15 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
         if (NetworkManager.Singleton == null || NetworkManager.Singleton.ShutdownInProgress)
             return;
 
-        if (!IsServer)
+        // On a client, NGO reports its own id when the connection to the host is lost
+        // (host quit, crash or network drop). NetworkManager is checked rather than this
+        // behaviour's IsServer, which is false once the PlayerManager is despawned.
+        if (!NetworkManager.Singleton.IsServer)
+        {
+            if (clientId == NetworkManager.Singleton.LocalClientId)
+                OnConnectionToHostLost();
             return;
+        }
 
         if (clientId == NetworkManager.Singleton.LocalClientId)
         {
@@ -56,20 +66,33 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
 
     public void Disconnect()
     {
+        StartDisconnect(connectionLost: false);
+    }
+
+    private void OnConnectionToHostLost()
+    {
+        PendingMenuMessage = "L'hôte a quitté la partie.";
+        StartDisconnect(connectionLost: true);
+    }
+
+    private void StartDisconnect(bool connectionLost)
+    {
         if (_isDisconnecting)
             return;
 
         _isDisconnecting = true;
-        StartCoroutine(DisconnectRoutine());
+        StartCoroutine(DisconnectRoutine(connectionLost));
     }
 
-    private IEnumerator DisconnectRoutine()
+    private IEnumerator DisconnectRoutine(bool connectionLost)
     {
         // Close the matchmaking lobby too, or its code stays joinable while nobody hosts it.
         SteamLobbySession.Leave();
         EOSLobbySession.Leave();
 
-        if (NetworkManager.Singleton != null &&
+        // Connection lost: NGO shuts down by itself right after the disconnect callback, discarding
+        // the outgoing messages. Shutting down here first would try to send them to a dead host.
+        if (!connectionLost && NetworkManager.Singleton != null &&
             (NetworkManager.Singleton.IsHost || NetworkManager.Singleton.IsClient))
         {
             NetworkManager.Singleton.Shutdown();
@@ -96,8 +119,8 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
 
     private void OnServerStopped(bool stop)
     {
-        NetworkManager.Singleton.OnServerStopped            -= OnServerStopped;
-        NetworkManager.Singleton.OnClientConnectedCallback  -= OnClientConnected;
+        NetworkManager.Singleton.OnServerStopped -= OnServerStopped;
+        NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
         NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
     }
 

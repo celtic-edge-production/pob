@@ -95,28 +95,25 @@ public class BombManager : NetworkSingleton<BombManager>
         if (currentHolder == null)
             return true;
 
-        PlayerCharacter holderCharacter = currentHolder.GetComponentInChildren<PlayerCharacter>();
-        if (holderCharacter == null)
+        TransferManager holderBomb = currentHolder.GetComponentInChildren<TransferManager>();
+        if (holderBomb == null)
             return true;
 
-        if (holderCharacter.isStun.Value && holderCharacter.hasBomb.Value)
+        PlayerCombat holderCombat = currentHolder.GetComponentInChildren<PlayerCombat>();
+        if (holderCombat != null && holderCombat.IsStunned.Value && holderBomb.HasBomb.Value)
             return false;
 
-        holderCharacter.hasBomb.Value = false;
-
-        TransferManager holderBombState = currentHolder.GetComponentInChildren<TransferManager>();
-        if (holderBombState != null)
-            holderBombState.OnBombTransferred();
-
+        holderBomb.HasBomb.Value = false;
+        holderBomb.OnBombTransferred();
         return true;
     }
 
     private void GiveBombTo(NetworkObject newHolder, ulong newHolderId)
     {
-        PlayerCharacter newHolderCharacter = newHolder != null ? newHolder.GetComponentInChildren<PlayerCharacter>() : null;
+        TransferManager newHolderBomb = newHolder != null ? newHolder.GetComponentInChildren<TransferManager>() : null;
 
-        if (newHolderCharacter != null)
-            newHolderCharacter.hasBomb.Value = true;
+        if (newHolderBomb != null)
+            newHolderBomb.HasBomb.Value = true;
         else
             Debug.LogWarning("New bomb holder not found: " + newHolderId);
     }

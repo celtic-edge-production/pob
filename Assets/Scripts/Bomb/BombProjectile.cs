@@ -53,9 +53,9 @@ public class BombProjectile : NetworkBehaviour
             }
             else if (hitPlayer != null && hitPlayer.OwnerClientId == ownerClientId && canBePickedUp)
             {
-                PlayerCharacter playerController = hitPlayer.GetComponentInChildren<PlayerCharacter>();
-                if (playerController != null)
-                    playerController.hasBomb.Value = true;
+                TransferManager thrower = hitPlayer.GetComponentInChildren<TransferManager>();
+                if (thrower != null)
+                    thrower.HasBomb.Value = true;
                 DestroyBomb();
             }
         }

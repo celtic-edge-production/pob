@@ -1,4 +1,5 @@
 using Unity.Netcode;
+using Unity.Netcode.Components;
 using UnityEngine;
 
 // A playable character: who controls it, where it faces, and its camera. The rest lives in
@@ -172,7 +173,18 @@ public class PlayerCharacter : NetworkBehaviour
         if (!IsOwner)
             return;
 
-        transform.position = position;
+        // A teleport, not a move: with a plain transform.position, the other peers interpolated the
+        // character from its old spot to its spawn point, and that copy (kinematic) shoved any player
+        // on its way. The shoved player's copy then shoved back on the other machine, and both ran on
+        // forever until one of them jumped.
+        Rigidbody2D body = GetComponent<Rigidbody2D>();
+        if (body != null)
+            body.linearVelocity = Vector2.zero;
+
+        if (TryGetComponent(out NetworkTransform networkTransform) && networkTransform.CanCommitToTransform)
+            networkTransform.Teleport(position, transform.rotation, transform.localScale);
+        else
+            transform.position = position;
     }
 
     #endregion

@@ -3,23 +3,7 @@ using UnityEngine;
 
 public class APhase : NetworkBehaviour
 {
-    [SerializeField] protected bool isCurrentPhase;
     [SerializeField] protected GameObject _SpawnTileMap;
-
-    virtual protected void Awake()
-    {   
-        
-    }
-
-    virtual protected void Update()
-    {
-        if (!isCurrentPhase) return;
-    }
-
-    virtual protected void FixedUpdate()
-    {
-        if (!isCurrentPhase) return;
-    }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
     virtual public void StartPhaseServerRpc()

@@ -317,13 +317,6 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     {
         ResetCameraClientRpc();
 
-        foreach (var player in players)
-        {
-            PlayerCharacter playerController = player.GetComponent<PlayerCharacter>();
-            if (playerController != null)
-                playerController.DesactivateCamera();
-        }
-
         var scoreDeltas = ComputeTotalScoreDeltas(PlayerRoundScores.Value);
         foreach (var kvp in scoreDeltas)
         {
@@ -435,6 +428,9 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         return deltas;
     }
 
+    // Every peer: back to the shared main camera, and off with this peer's own character camera.
+    // Only the owner can switch it off (PlayerCharacter.DesactivateCamera checks IsOwner): done on
+    // the server, it only reached the host's character, and every client kept two AudioListeners.
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void ResetCameraClientRpc()
     {
@@ -443,10 +439,14 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
             mainCamera.gameObject.SetActive(true);
             MainCameraController mainCameraController = mainCamera.GetComponent<MainCameraController>();
             if (mainCameraController != null)
-            {
                 mainCameraController.ResetCamera();
-            }
         }
+
+        // After the main camera is back: DesactivateCamera never leaves a peer without a camera.
+        PlayerIdentity localPlayer = PlayerIdentity.LocalPlayer;
+        PlayerCharacter localCharacter = localPlayer != null ? localPlayer.GetComponentInChildren<PlayerCharacter>(true) : null;
+        if (localCharacter != null)
+            localCharacter.DesactivateCamera();
     }
 
     // Called by PhaseManager after a delay: the scores travel through NetworkVariables (sent on the

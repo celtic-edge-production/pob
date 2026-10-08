@@ -423,38 +423,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: -460566340810036328, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: GlobalObjectIdHash
-      value: 233664489
-      objectReference: {fileID: 0}
-    - target: {fileID: -460566340810036328, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: InScenePlacedSourceGlobalObjectIdHash
-      value: 3831928658
-      objectReference: {fileID: 0}
-    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: debug
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: _trapTileMap
-      value: 
-      objectReference: {fileID: 1621885459}
-    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: _PhaseManager
-      value: 
-      objectReference: {fileID: 2044376632}
-    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: _SpawnTileMap
-      value: 
-      objectReference: {fileID: 1403848879}
-    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: _paternTileMap
-      value: 
-      objectReference: {fileID: 1422484204}
-    - target: {fileID: 7912953175915040880, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
-      propertyPath: m_IsActive
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: 372411627638617825, guid: 0bebd720f9251a94da4edebce895b1df, type: 3}
       propertyPath: m_LocalPosition.x
       value: -3.23
@@ -522,6 +490,38 @@ PrefabInstance:
     - target: {fileID: 8620889365741014209, guid: 0bebd720f9251a94da4edebce895b1df, type: 3}
       propertyPath: InScenePlacedSourceGlobalObjectIdHash
       value: 1216001367
+      objectReference: {fileID: 0}
+    - target: {fileID: -460566340810036328, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: GlobalObjectIdHash
+      value: 233664489
+      objectReference: {fileID: 0}
+    - target: {fileID: -460566340810036328, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: InScenePlacedSourceGlobalObjectIdHash
+      value: 3831928658
+      objectReference: {fileID: 0}
+    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: debug
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: _trapTileMap
+      value: 
+      objectReference: {fileID: 1621885459}
+    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: _PhaseManager
+      value: 
+      objectReference: {fileID: 2044376632}
+    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: _SpawnTileMap
+      value: 
+      objectReference: {fileID: 1403848879}
+    - target: {fileID: 4259100432765415108, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: _paternTileMap
+      value: 
+      objectReference: {fileID: 1422484204}
+    - target: {fileID: 7912953175915040880, guid: c6484b11bfa1b47408fb91d760f99200, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -4030,6 +4030,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2512828657504314505, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
+      propertyPath: _timerText
+      value: 
+      objectReference: {fileID: 115381719}
     - target: {fileID: 4281991580509232612, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
       propertyPath: m_Name
       value: BombManager
@@ -4078,180 +4082,11 @@ PrefabInstance:
       propertyPath: GlobalObjectIdHash
       value: 3234026796
       objectReference: {fileID: 0}
-    - target: {fileID: 6471693923214290422, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-      propertyPath: SceneMigrationSynchronization
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6471693923214290422, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-      propertyPath: InScenePlacedSourceGlobalObjectIdHash
-      value: 2640244156
-      objectReference: {fileID: 0}
-    - target: {fileID: 8094162113819022016, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-      propertyPath: bombTimer
-      value: 60
-      objectReference: {fileID: 0}
-    - target: {fileID: 8094162113819022016, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-      propertyPath: timerText
-      value: 
-      objectReference: {fileID: 115381719}
-    - target: {fileID: 8094162113819022016, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-      propertyPath: _WaitingMusic
-      value: 
-      objectReference: {fileID: 8300000, guid: 1cdca30d3b419b842ace4a128374523c, type: 3}
-    - target: {fileID: 8094162113819022016, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-      propertyPath: _BackgroundMusic
-      value: 
-      objectReference: {fileID: 8300000, guid: 271fceb20f85cf34e8320944df9d7c55, type: 3}
-    - target: {fileID: 8094162113819022016, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-      propertyPath: _BackgroundWaitingMusic
-      value: 
-      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 4281991580509232612, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 853604392}
-    - targetCorrespondingSourceObject: {fileID: 4281991580509232612, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 853604394}
-    - targetCorrespondingSourceObject: {fileID: 4281991580509232612, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 853604393}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
---- !u!1 &853604391 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 4281991580509232612, guid: bd39cdd71cffdde4c87adcaeee9fff78, type: 3}
-  m_PrefabInstance: {fileID: 853604390}
-  m_PrefabAsset: {fileID: 0}
---- !u!82 &853604392
-AudioSource:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 853604391}
-  m_Enabled: 1
-  serializedVersion: 4
-  OutputAudioMixerGroup: {fileID: 1792487535572849326, guid: e8c43d23d265c4c45bb92ee61633bca2, type: 2}
-  m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 0}
-  m_PlayOnAwake: 1
-  m_Volume: 1
-  m_Pitch: 1
-  Loop: 0
-  Mute: 0
-  Spatialize: 0
-  SpatializePostEffects: 0
-  Priority: 128
-  DopplerLevel: 1
-  MinDistance: 1
-  MaxDistance: 500
-  Pan2D: 0
-  rolloffMode: 0
-  BypassEffects: 0
-  BypassListenerEffects: 0
-  BypassReverbZones: 0
-  rolloffCustomCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.33333334
-    - serializedVersion: 3
-      time: 1
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.33333334
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  panLevelCustomCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.33333334
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  spreadCustomCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.33333334
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  reverbZoneMixCustomCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 1
-      inSlope: 0
-      outSlope: 0
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.33333334
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
---- !u!114 &853604393
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 853604391}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0c458e10e7b9d96408e8db3f1c403299, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: NewAssembly::BombTimerDisplay
-  _timerText: {fileID: 115381719}
-  _visibleBelow: 10
---- !u!114 &853604394
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 853604391}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d6cf95eb75b53f4499e782cc79b812b8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: NewAssembly::BombMusic
-  _waitingMusic: {fileID: 8300000, guid: 1cdca30d3b419b842ace4a128374523c, type: 3}
-  _roundMusic: {fileID: 8300000, guid: 271fceb20f85cf34e8320944df9d7c55, type: 3}
-  _volume: 0.5
-  _speedUpBelow: 10
 --- !u!1 &856462946
 GameObject:
   m_ObjectHideFlags: 0
@@ -19396,7 +19231,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  isCurrentPhase: 0
   _SpawnTileMap: {fileID: 1403848879}
   _displayDuration: 5
 --- !u!114 &2044376630
@@ -19412,7 +19246,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  isCurrentPhase: 0
   _SpawnTileMap: {fileID: 1403848879}
   timer: {fileID: 419108631}
 --- !u!114 &2044376631
@@ -19428,7 +19261,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  isCurrentPhase: 0
   _SpawnTileMap: {fileID: 1403848879}
   _TrapChestPrefab: {fileID: 4395522467666056738, guid: 59c4f3ad45710d14d94bf9de72f1fa08, type: 3}
 --- !u!114 &2044376632
@@ -19444,11 +19276,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
-  _currentPhase:
-    m_InternalValue: 0
   phase1: {fileID: 2044376631}
   phase2: {fileID: 2044376630}
   endGame: {fileID: 2044376629}
+  _startDelay: 3
+  _countdownSeconds: 5
+  _goDisplayTime: 1
+  _trapActivationDelay: 2
+  _scoreSyncDelay: 3
+  _scoreboardTimeout: 60
+  _afterScoreboardDelay: 3
 --- !u!114 &2044376633
 MonoBehaviour:
   m_ObjectHideFlags: 0

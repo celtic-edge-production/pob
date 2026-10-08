@@ -26,18 +26,20 @@ public abstract class ATrap : NetworkBehaviour
     protected TrapState _previousState;
     protected Animator _animator;
 
-    private Vector2 _mousePosition;
+    private Vector3 _baseScale;
 
-    public Vector3Int cellPosition = new();
-    // Server only: true once the preview has been shown on a valid cell (cellPosition is meaningful).
-    [NonSerialized] public bool hasPreviewCell;
+    // Server only: the cell the trap was placed on (its top-left cell).
+    [NonSerialized] public Vector3Int cellPosition;
     // Server only: the player who chose the trap (meaningful from TrapStage.Chosen on).
     [NonSerialized] public ulong ChosenBy;
     // Set by each trap in Awake: its shape before any rotation.
     protected int[,] matrix;
-    private TrapShape _shape;
-    // Current shape on the grid, rotations included (server side, during placement).
-    public TrapShape Shape => _shape ??= new TrapShape(matrix);
+    private TrapShape _baseShape;
+    private TrapShape BaseShape => _baseShape ??= new TrapShape(matrix);
+
+    // The orientation last shown by ShowAt (the placing player's preview, then the placed trap).
+    public TrapOrientation Orientation { get; private set; } = TrapOrientation.Default;
+    public TrapShape Shape => GetShape(Orientation);
     public bool isBombTrap = false;
 
     // Server-written; every peer reacts to it (selection in the chest, phase 2 activation).
@@ -63,6 +65,7 @@ public abstract class ATrap : NetworkBehaviour
         _animator = GetComponent<Animator>();
         _previousState = _state;
         _animator.enabled = true;
+        _baseScale = transform.localScale;
 
         _renderers = GetComponentsInChildren<SpriteRenderer>(true);
         _baseColors = new Color[_renderers.Length];
@@ -147,20 +150,33 @@ public abstract class ATrap : NetworkBehaviour
         // Applied to every trap: no animation and no collision outside phase 2.
         ApplyStateToComponents();
 
-        if (_boxColliderOverMouse == null || Stage.Value != TrapStage.InChest)
-            return;
+    }
 
-        _mousePosition = TrapUtils.GetMousePosition();
+    // Chest selection: the cursor's click (TilemapHover) asks whether it is on this trap.
+    public bool IsUnderPoint(Vector2 worldPoint)
+    {
+        return _boxColliderOverMouse != null && _boxColliderOverMouse.OverlapPoint(worldPoint);
+    }
 
-        if (_boxColliderOverMouse.OverlapPoint(_mousePosition) && Input.GetMouseButtonDown(0))
-        {
-            PlayerIdentity localPlayer = PlayerIdentity.LocalPlayer;
-            if (localPlayer == null || localPlayer.Cursor == null)
-                return;
+    public TrapShape GetShape(TrapOrientation orientation)
+    {
+        return orientation.Apply(BaseShape);
+    }
 
-            ulong cursorId = localPlayer.Cursor.GetComponent<NetworkObject>().NetworkObjectId;
-            TrapPlacementManager.Instance.OnPlayerSelectedATrapServerRpc(trapId.Value, localPlayer.OwnerClientId, cursorId);
-        }
+    // Puts the trap on this cell with this orientation, in one step. Run by whoever moves the trap:
+    // the placing player while he owns it (ClientNetworkTransform replicates it), the server once placed.
+    // The sprite pivot must be centred: the transform goes to the centre of the oriented shape.
+    public void ShowAt(Vector3Int cell, TrapOrientation orientation)
+    {
+        Orientation = orientation;
+
+        transform.SetPositionAndRotation(
+            cell + GetShape(orientation).GetPreviewOffset(),
+            Quaternion.Euler(0f, 0f, orientation.EulerZ));
+
+        Vector3 scale = _baseScale;
+        scale.x = Mathf.Abs(scale.x) * orientation.ScaleXSign;
+        transform.localScale = scale;
     }
 
     protected virtual void FixedUpdate()
@@ -196,14 +212,5 @@ public abstract class ATrap : NetworkBehaviour
     {
         if (_actionSound != null)
             AudioSource.PlayClipAtPoint(_actionSound, position);
-    }
-
-    // Server only (placement): turns the sprite and the shape by quarter turns, counterclockwise.
-    public void RotateShape(int direction)
-    {
-        int rotationStep = ((direction % 4) + 4) % 4;
-
-        transform.Rotate(new Vector3(0, 0, 90 * rotationStep));
-        _shape = Shape.Rotated(rotationStep);
     }
 }

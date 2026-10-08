@@ -69,6 +69,18 @@ public class TrapShapeTests
     }
 
     [Test]
+    public void MirroredHorizontally_ReversesTheColumns()
+    {
+        Assert.AreEqual(new int[,] { { 3, 2, 1 }, { 6, 5, 4 } }, new TrapShape(Asymmetric).MirroredHorizontally().ToMatrix());
+    }
+
+    [Test]
+    public void MirroredHorizontally_Twice_GivesTheSameShape()
+    {
+        Assert.AreEqual(Asymmetric, new TrapShape(Asymmetric).MirroredHorizontally().MirroredHorizontally().ToMatrix());
+    }
+
+    [Test]
     public void Constructor_CopiesTheMatrix()
     {
         int[,] matrix = { { 1 } };
@@ -79,13 +91,14 @@ public class TrapShapeTests
         Assert.IsTrue(shape.Covers(0, 0));
     }
 
+    // The first three are the shapes in the game today: same offsets as the former formula.
     [TestCase(1, 1, 0.5f, 0.5f)]
     [TestCase(3, 1, 1.5f, 0.5f)]
     [TestCase(1, 3, 0.5f, -0.5f)]
-    [TestCase(1, 2, 0.5f, 1.0f)]
+    [TestCase(1, 2, 0.5f, 0.0f)]
     [TestCase(2, 2, 1.0f, 0.0f)]
-    [TestCase(2, 3, 1.0f, -1.0f)]
-    public void GetPreviewOffset_MatchesFormerFormula(int width, int height, float expectedX, float expectedY)
+    [TestCase(2, 3, 1.0f, -0.5f)]
+    public void GetPreviewOffset_IsTheCentreOfTheShape(int width, int height, float expectedX, float expectedY)
     {
         int[,] matrix = new int[height, width];
         TrapShape shape = new TrapShape(matrix);

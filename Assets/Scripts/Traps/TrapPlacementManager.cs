@@ -8,6 +8,8 @@ using UnityEngine.Tilemaps;
 // one, previews it inside the allowed zone, then places it. Also hides, activates and
 // despawns the placed traps for the other phases.
 // Each trap carries its own TrapStage; this manager only keeps the list of the traps it spawned.
+// While a player holds a trap he owns it and moves it himself (TilemapHover): the server only
+// tells him whether the preview is valid, and checks everything again when he places it.
 public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 {
     [Tooltip("Colours the preview (green) and the occupied cells (red) on the zone tilemap.")]
@@ -29,6 +31,9 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     // Server only: true from the moment the chest offers its traps until the last one is placed.
     private bool _isPlacementPhaseRunning;
+
+    // Server only, debug colours: the cells each preview last coloured.
+    private readonly Dictionary<ATrap, List<Vector3Int>> _debugPreviewCells = new();
 
     public event Action OnTrapPlaced;
     public event Action OnTrapRemoved;
@@ -77,6 +82,11 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         trap.ChosenBy = playerId;
         trap.TrySetStage(TrapStage.Chosen);
 
+        // The player moves his trap himself until he places it. If he leaves, the server gets it
+        // back instead of NGO destroying it, and HandlePlayerLeft removes it.
+        trap.NetworkObject.DontDestroyWithOwner = true;
+        trap.NetworkObject.ChangeOwnership(playerId);
+
         TilemapHover hover = cursor.GetComponent<TilemapHover>();
         hover.isSettingTrap.Value = true;
         hover.canPlaceTrap.Value = true;
@@ -90,8 +100,10 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         ATrap.MuteDestroySound = true;
     }
 
+    // Sent by the placing player when his preview changes cell or orientation: the trap already moved
+    // on his side, the server only answers whether it could be placed there (red tint otherwise).
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void CheckMouseOnTileServerRpc(Vector3 worldPosition, ulong playerId, RpcParams rpcParams = default)
+    public void OnPlayerPreviewChangedServerRpc(int cellX, int cellY, byte quarterTurns, bool mirrored, ulong playerId, RpcParams rpcParams = default)
     {
         if (!RpcValidation.SenderMatches(rpcParams, playerId))
             return;
@@ -100,44 +112,19 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         if (trap == null)
             return;
 
-        Vector3Int cellPosition = _paternTileMap.WorldToCell(worldPosition);
+        Vector3Int cell = new Vector3Int(cellX, cellY, 0);
+        TrapShape shape = trap.GetShape(new TrapOrientation(quarterTurns, mirrored));
 
-        if (trap.hasPreviewCell && trap.cellPosition == cellPosition)
-            return;
-
-        if (debug && trap.hasPreviewCell)
-            UnDrawLastTiles(trap);
-
-        // The preview follows the mouse everywhere, forbidden cells included (it turns red there):
-        // a click on a forbidden cell is refused instead of placing the trap at the edge of the zone.
-        MovePreview(trap, cellPosition);
-        DrawShapeOfTrap(cellPosition, trap);
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void OnPlayerRotateTrapServerRpc(int position, ulong playerId, RpcParams rpcParams = default)
-    {
-        if (!RpcValidation.SenderMatches(rpcParams, playerId))
-            return;
-
-        ATrap trap = GetHeldTrapOf(playerId);
-        if (trap == null)
-            return;
+        trap.isPreviewValid.Value = CanPlaceAt(trap, shape, cell);
 
         if (debug)
-            UnDrawLastTiles(trap);
-
-        trap.RotateShape(position);
-
-        // Re-centred for the new shape, and checked again: it may no longer fit here.
-        if (trap.hasPreviewCell)
-            MovePreview(trap, trap.cellPosition);
+            DrawPreview(trap, shape, cell);
     }
 
-    // The trap is placed where its preview is, never at a position sent by the client:
-    // that position could be outside the allowed zone or away from the visible trap.
+    // The cell and orientation come from the player, so everything is checked again here; the trap's
+    // final transform is then set by the server, whatever the client showed.
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void OnPlayerPlaceTrapServerRpc(ulong playerId, ulong cursorId, RpcParams rpcParams = default)
+    public void OnPlayerPlaceTrapServerRpc(int cellX, int cellY, byte quarterTurns, bool mirrored, ulong playerId, ulong cursorId, RpcParams rpcParams = default)
     {
         if (!RpcValidation.SenderMatches(rpcParams, playerId))
             return;
@@ -146,7 +133,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         if (trap == null || trap.Stage.Value != TrapStage.Placing)
             return;
 
-        if (!PlaceTrap(trap))
+        if (!PlaceTrap(trap, new Vector3Int(cellX, cellY, 0), new TrapOrientation(quarterTurns, mirrored)))
             return;
 
         NetworkObject cursor = GetNetworkObjectById(cursorId);
@@ -269,54 +256,50 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     #region Grid
 
-    // Server only: moves the preview to this cell and tells every peer whether it can be placed there.
-    private void MovePreview(ATrap trap, Vector3Int cellPosition)
-    {
-        trap.cellPosition = cellPosition;
-        trap.hasPreviewCell = true;
-        trap.transform.position = GetPreviewPosition(cellPosition, trap);
-        trap.isPreviewValid.Value = CanPlaceAt(trap, cellPosition);
-    }
-
     // The bomb trap goes on top of another trap (it destroys it): it only needs the zone.
-    private bool CanPlaceAt(ATrap trap, Vector3Int origin)
+    private bool CanPlaceAt(ATrap trap, TrapShape shape, Vector3Int origin)
     {
         return trap.isBombTrap
-            ? _grid.IsInsideZone(trap.Shape, origin)
-            : _grid.CanPlace(trap.Shape, origin);
+            ? _grid.IsInsideZone(shape, origin)
+            : _grid.CanPlace(shape, origin);
     }
 
-    private bool PlaceTrap(ATrap trap)
+    private bool PlaceTrap(ATrap trap, Vector3Int origin, TrapOrientation orientation)
     {
-        if (!trap.hasPreviewCell)
-            return false;
+        TrapShape shape = trap.GetShape(orientation);
 
-        Vector3Int origin = trap.cellPosition;
-
-        // Re-checked here: the preview may sit on a forbidden cell, or another trap may have been
-        // placed there since.
-        if (!_grid.IsInsideZone(trap.Shape, origin))
+        if (!_grid.IsInsideZone(shape, origin))
             return false;
 
         if (trap.isBombTrap)
         {
             // Never on the grid: it removes the trap below and disappears (BombTrap.ExplodeBomb).
-            trap.isPreviewValid.Value = true;
+            ReturnToServer(trap, origin, orientation);
             trap.TrySetStage(TrapStage.Placed);
             ((BombTrap)trap).ExplodeBomb(origin);
             return true;
         }
 
-        if (!_grid.TryPlace(trap.trapId.Value, trap.Shape, origin))
+        if (!_grid.TryPlace(trap.trapId.Value, shape, origin))
             return false;
 
-        trap.isPreviewValid.Value = true;
+        ReturnToServer(trap, origin, orientation);
         trap.TrySetStage(TrapStage.Placed);
 
         if (debug)
             ColorCells(_grid.GetCellsOf(trap.trapId.Value), Color.red);
 
         return true;
+    }
+
+    // The placed trap belongs to the server again, which sets its exact final transform.
+    private void ReturnToServer(ATrap trap, Vector3Int origin, TrapOrientation orientation)
+    {
+        trap.NetworkObject.RemoveOwnership();
+        trap.cellPosition = origin;
+        trap.ShowAt(origin, orientation);
+        trap.isPreviewValid.Value = true;
+        _debugPreviewCells.Remove(trap);
     }
 
     // Server only. Removes the placed trap covering this cell (used by the bomb trap).
@@ -340,21 +323,15 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         OnTrapRemoved?.Invoke();
     }
 
-    private static Vector3 GetPreviewPosition(Vector3Int cellPosition, ATrap trap)
+    // Debug only: the preview (green) and the placed traps (red) as colours on the zone tilemap.
+    private void DrawPreview(ATrap trap, TrapShape shape, Vector3Int origin)
     {
-        return cellPosition + trap.Shape.GetPreviewOffset();
-    }
+        if (_debugPreviewCells.TryGetValue(trap, out List<Vector3Int> previous))
+            ColorCells(previous, Color.white);
 
-    // Debug only: the preview and the placed traps are drawn as colours on the zone tilemap.
-    private void UnDrawLastTiles(ATrap trap)
-    {
-        ColorCells(trap.Shape.GetCells(trap.cellPosition), Color.white);
-    }
-
-    private void DrawShapeOfTrap(Vector3Int cellPosition, ATrap trap)
-    {
-        if (debug)
-            ColorCells(trap.Shape.GetCells(cellPosition), Color.green);
+        List<Vector3Int> cells = new List<Vector3Int>(shape.GetCells(origin));
+        _debugPreviewCells[trap] = cells;
+        ColorCells(cells, Color.green);
     }
 
     private void ColorCells(IEnumerable<Vector3Int> cells, Color color)
@@ -407,6 +384,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
             trap.NetworkObject.Despawn(true);
 
         _traps.Clear();
+        _debugPreviewCells.Clear();
         _isPlacementPhaseRunning = false;
     }
 
@@ -474,6 +452,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     private void Despawn(ATrap trap)
     {
         _traps.Remove(trap);
+        _debugPreviewCells.Remove(trap);
         if (trap.IsSpawned)
             trap.NetworkObject.Despawn(true);
     }

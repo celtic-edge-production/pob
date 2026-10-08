@@ -27,5 +27,5 @@ EditorBuildSettings:
     path: Assets/Resources/Scenes/Network/Network.unity
     guid: 11747659f0379e840844462956a1c4f3
   m_configObjects:
-    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
+    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 0c3757d8958709740957509bf587808d, type: 3}
   m_UseUCBPForAssetBundles: 0

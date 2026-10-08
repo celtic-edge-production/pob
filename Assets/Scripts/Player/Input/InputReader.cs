@@ -3,7 +3,8 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 [CreateAssetMenu(menuName = "Input/Input Reader", fileName = "Input Reader")]
-public class InputReader : ScriptableObject {
+public class InputReader : ScriptableObject
+{
 
     [SerializeField]
     private InputActionAsset _Asset;
@@ -25,6 +26,7 @@ public class InputReader : ScriptableObject {
     // -- Editor Actions --
     private InputAction _RotateLeft;
     private InputAction _RotateRight;
+    private InputAction _Mirror;
 
     // -- Menu Actions --
     private InputAction _MenuAction;
@@ -44,6 +46,7 @@ public class InputReader : ScriptableObject {
 
     public event Action RotateLeftEvent;
     public event Action RotateRightEvent;
+    public event Action MirrorEvent;
 
     public event Action MenuEvent;
 
@@ -56,46 +59,61 @@ public class InputReader : ScriptableObject {
         _JumpAction = _Asset.FindAction("Jump");
 
         _AttackAction = _Asset.FindAction("Attack");
-        _ThrowAction  = _Asset.FindAction("Throw");
+        _ThrowAction = _Asset.FindAction("Throw");
 
-        _RotateLeft  = _Asset.FindAction("Rotate Left");
+        _RotateLeft = _Asset.FindAction("Rotate Left");
         _RotateRight = _Asset.FindAction("Rotate Right");
+        // Optional: add a "Mirror" button action to the Input Actions asset to enable it.
+        _Mirror = _Asset.FindAction("Mirror");
 
         _MenuAction = _Asset.FindAction("Menu");
 
-        // Listen to the events
-        if (_MouseAction1 != null) {
-            _MouseAction1.started   += OnMouseAction1Event;
+        // Listen to the events.
+        // Buttons only listen to "performed": a press also raises "started" and a release "canceled",
+        // and listening to all three ran each click, punch and rotation two or three times.
+        if (_MouseAction1 != null)
+        {
             _MouseAction1.performed += OnMouseAction1Event;
-            _MouseAction1.canceled  += OnMouseAction1Event;
-        } if (_MouseAction2 != null) {
-            _MouseAction2.started   += OnMouseAction2Event;
+        }
+        if (_MouseAction2 != null)
+        {
             _MouseAction2.performed += OnMouseAction2Event;
-            _MouseAction2.canceled  += OnMouseAction2Event;
-        } if (_MoveAction != null) {
-            _MoveAction.started   += OnMovePerformed;
+        }
+        if (_MoveAction != null)
+        {
+            _MoveAction.started += OnMovePerformed;
             _MoveAction.performed += OnMovePerformed;
-            _MoveAction.canceled  += OnMovePerformed;
-        } if (_JumpAction != null) {
-            _JumpAction.started   += OnJumpStarted;
+            _MoveAction.canceled += OnMovePerformed;
+        }
+        if (_JumpAction != null)
+        {
+            _JumpAction.started += OnJumpStarted;
             _JumpAction.performed += OnJumpPerformed;
-            _JumpAction.canceled  += OnJumpPerformed;
-        } if (_AttackAction != null) {
-            _AttackAction.started   += OnAttackPerformed;
+            _JumpAction.canceled += OnJumpPerformed;
+        }
+        if (_AttackAction != null)
+        {
             _AttackAction.performed += OnAttackPerformed;
-            _AttackAction.canceled  += OnAttackPerformed;
-        } if (_ThrowAction != null) {
-            _ThrowAction.started   += OnThrowStarted;
-            _ThrowAction.canceled  += OnThrowEnded;
-        } if (_RotateLeft != null) {
-            _RotateLeft.started   += OnRotateLeftPerformed;
+        }
+        if (_ThrowAction != null)
+        {
+            _ThrowAction.started += OnThrowStarted;
+            _ThrowAction.canceled += OnThrowEnded;
+        }
+        if (_RotateLeft != null)
+        {
             _RotateLeft.performed += OnRotateLeftPerformed;
-            _RotateLeft.canceled  += OnRotateLeftPerformed;
-        } if (_RotateRight != null) {
-            _RotateRight.started   += OnRotateRightPerformed;
+        }
+        if (_RotateRight != null)
+        {
             _RotateRight.performed += OnRotateRightPerformed;
-            _RotateRight.canceled  += OnRotateRightPerformed;
-        } if (_MenuAction != null) {
+        }
+        if (_Mirror != null)
+        {
+            _Mirror.performed += OnMirrorPerformed;
+        }
+        if (_MenuAction != null)
+        {
             _MenuAction.performed += OnMenuPerformed;
         }
 
@@ -105,39 +123,50 @@ public class InputReader : ScriptableObject {
     private void OnDisable()
     {
         // Stop listening to the events
-        if (_Asset != null) {
-            if (_MouseAction1 != null) {
-                _MouseAction1.started -= OnMouseAction1Event;
+        if (_Asset != null)
+        {
+            if (_MouseAction1 != null)
+            {
                 _MouseAction1.performed -= OnMouseAction1Event;
-                _MouseAction1.canceled -= OnMouseAction1Event;
-            } if (_MouseAction2 != null) {
-                _MouseAction2.started -= OnMouseAction2Event;
+            }
+            if (_MouseAction2 != null)
+            {
                 _MouseAction2.performed -= OnMouseAction2Event;
-                _MouseAction2.canceled -= OnMouseAction2Event;
-            } if (_MoveAction != null) {
+            }
+            if (_MoveAction != null)
+            {
                 _MoveAction.started -= OnMovePerformed;
                 _MoveAction.performed -= OnMovePerformed;
                 _MoveAction.canceled -= OnMovePerformed;
-            } if (_JumpAction != null) {
+            }
+            if (_JumpAction != null)
+            {
                 _JumpAction.started -= OnJumpStarted;
                 _JumpAction.performed -= OnJumpPerformed;
                 _JumpAction.canceled -= OnJumpPerformed;
-            } if (_AttackAction != null) {
-                _AttackAction.started -= OnAttackPerformed;
+            }
+            if (_AttackAction != null)
+            {
                 _AttackAction.performed -= OnAttackPerformed;
-                _AttackAction.canceled -= OnAttackPerformed;
-            } if (_ThrowAction != null) {
-                _ThrowAction.started  -= OnThrowStarted;
+            }
+            if (_ThrowAction != null)
+            {
+                _ThrowAction.started -= OnThrowStarted;
                 _ThrowAction.canceled -= OnThrowEnded;
-            } if (_RotateLeft != null) {
-                _RotateLeft.started -= OnRotateLeftPerformed;
+            }
+            if (_RotateLeft != null)
+            {
                 _RotateLeft.performed -= OnRotateLeftPerformed;
-                _RotateLeft.canceled -= OnRotateLeftPerformed;
-            } if (_RotateRight != null) {
-                _RotateRight.started -= OnRotateRightPerformed;
+            }
+            if (_RotateRight != null)
+            {
                 _RotateRight.performed -= OnRotateRightPerformed;
-                _RotateRight.canceled -= OnRotateRightPerformed;
-            } if (_MenuAction != null)
+            }
+            if (_Mirror != null)
+            {
+                _Mirror.performed -= OnMirrorPerformed;
+            }
+            if (_MenuAction != null)
             {
                 _MenuAction.performed -= OnMenuPerformed;
             }
@@ -196,6 +225,11 @@ public class InputReader : ScriptableObject {
     private void OnRotateRightPerformed(InputAction.CallbackContext context)
     {
         RotateRightEvent?.Invoke();
+    }
+
+    private void OnMirrorPerformed(InputAction.CallbackContext context)
+    {
+        MirrorEvent?.Invoke();
     }
 
     private void OnMenuPerformed(InputAction.CallbackContext context)

@@ -44,6 +44,18 @@ public sealed class TrapShape
         return new TrapShape(result);
     }
 
+    // Left-right flip of the shape (columns reversed).
+    public TrapShape MirroredHorizontally()
+    {
+        int[,] mirrored = new int[Height, Width];
+
+        for (int row = 0; row < Height; row++)
+            for (int column = 0; column < Width; column++)
+                mirrored[row, Width - column - 1] = _matrix[row, column];
+
+        return new TrapShape(mirrored);
+    }
+
     private static int[,] RotateOnceCounterclockwise(int[,] source)
     {
         int height = source.GetLength(0);
@@ -69,27 +81,12 @@ public sealed class TrapShape
         }
     }
 
-    // Offset from the origin cell to the trap's transform, so that its sprite covers the shape.
+    // Offset from the origin cell to the centre of the shape's bounding box, where the trap's
+    // transform goes. The origin cell covers [x, x+1] x [y, y+1] and rows go down, so the box spans
+    // Width cells to the right and Height cells down from the top of the origin cell.
+    // Requires the trap sprites to have a centred pivot, which also keeps rotations in place.
     public Vector3 GetPreviewOffset()
     {
-        float sizeX = Width;
-        float sizeY = Height;
-
-        if (sizeX > 1 && sizeY > 1)
-        {
-            float offsetY = (sizeY % 2 == 0) ? sizeY / 2 - 1.0f : sizeY / 2 - 0.5f;
-            return new Vector3(sizeX / 2, -offsetY, 0);
-        }
-
-        if (sizeX > 1)
-            return new Vector3(sizeX / 2, 0.5f, 0);
-
-        if (sizeY > 1)
-        {
-            float offsetY = (sizeY % 2 == 0) ? sizeY / 2 - 2.0f : sizeY / 2 - 1.0f;
-            return new Vector3(0.5f, -offsetY, 0);
-        }
-
-        return new Vector3(0.5f, 0.5f, 0);
+        return new Vector3(Width / 2f, 1f - Height / 2f, 0f);
     }
 }

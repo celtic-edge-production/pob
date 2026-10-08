@@ -23,6 +23,15 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
         DontDestroyOnLoad(gameObject);
     }
 
+    private void OnApplicationQuit()
+    {
+        // Quitting destroys every object in any order. Without a shutdown first, NGO sees a client
+        // destroying its spawned objects as an invalid Destroy, and crashes while logging it
+        // because the NetworkManager is already gone (NetworkLog.Header NullReferenceException).
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            NetworkManager.Singleton.Shutdown(true);
+    }
+
     private void OnClientConnected(ulong clientId)
     {
         if (IsServer)

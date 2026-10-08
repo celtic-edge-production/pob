@@ -58,6 +58,11 @@ public class PlayerIdentity : NetworkBehaviour
         if (IsServer && !NetworkManager.ShutdownInProgress && Characters != null)
             FreeCharacterOfLeavingOwner();
 
+        // The InputReader is a shared asset that outlives this identity: a forgotten
+        // subscription would call into it in the next session (RPC on an unspawned object).
+        if (Input != null)
+            Input.MouseAction2Event -= OnMouseAction2;
+
         base.OnNetworkDespawn();
     }
 
@@ -124,7 +129,8 @@ public class PlayerIdentity : NetworkBehaviour
     {
         if (!Data)
             Data = GetComponentInChildren<PlayerData>();
-        if (!Cursor) {
+        if (!Cursor)
+        {
             Cursor = GetComponentInChildren<CursorController>().gameObject;
 
             Cursor.GetComponent<CursorController>().Init();
@@ -237,7 +243,8 @@ public class PlayerIdentity : NetworkBehaviour
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void SetCharacterOnClientRpc()
     {
-        if (IsOwner) {
+        if (IsOwner)
+        {
             HaveCharacters.Value = true;
 
             Input.MouseAction2Event += OnMouseAction2;
@@ -256,7 +263,8 @@ public class PlayerIdentity : NetworkBehaviour
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void UnbindClientRpc()
     {
-        if (IsOwner && Characters == null) {
+        if (IsOwner && Characters == null)
+        {
             HaveCharacters.Value = false;
 
             Input.MouseAction2Event -= OnMouseAction2;
@@ -354,8 +362,10 @@ public class PlayerIdentity : NetworkBehaviour
     public void OnMouseAction2()
     {
         // -- Detect if we are in the lobby (Because if we are not, the LobbyManager is not initialized)
-        if (LobbyManager.Instance) {
-            if (IsOwner && !IsVoting.Value) {
+        if (LobbyManager.Instance)
+        {
+            if (IsOwner && !IsVoting.Value)
+            {
                 if (HaveCharacters.Value == true)
                     RemoveCharacter();
             }

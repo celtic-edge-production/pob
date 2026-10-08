@@ -57,10 +57,26 @@ public class CursorController : NetworkBehaviour
             _Input.MouseAction1Event -= OnCursorAction;
     }
 
+    public override void OnNetworkDespawn()
+    {
+        // The InputReader is a shared asset that outlives this cursor: without this, a click in
+        // the next session still reached the old cursor and its old identity (SelectCharacter).
+        if (_Input != null)
+        {
+            _Input.MouseAction1Event -= OnCursorAction;
+            _Input = null;
+        }
+
+        OnClick = null;
+        base.OnNetworkDespawn();
+    }
+
     public void Init()
     {
-        if (IsOwner) {
-            if (transform.parent && transform.parent.TryGetComponent(out PlayerIdentity player)) {
+        if (IsOwner)
+        {
+            if (transform.parent && transform.parent.TryGetComponent(out PlayerIdentity player))
+            {
                 _Input = player.Input;
 
                 _Input.MouseAction1Event += OnCursorAction;
@@ -101,11 +117,13 @@ public class CursorController : NetworkBehaviour
             Vector3 screenPosition = Camera.main.WorldToScreenPoint(targetPosition);
 
             Mouse.current?.WarpCursorPosition(new Vector2(screenPosition.x, screenPosition.y));
-        } else {
+        }
+        else
+        {
             Vector3 mousePosition = Input.mousePosition;
 
-            mousePosition.z  = Camera.main.nearClipPlane;            
-            targetPosition   = Camera.main.ScreenToWorldPoint(mousePosition);
+            mousePosition.z = Camera.main.nearClipPlane;
+            targetPosition = Camera.main.ScreenToWorldPoint(mousePosition);
             targetPosition.z = 0;
         }
 

@@ -119,6 +119,11 @@ public class PlayerCharacter : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         _facingRight.OnValueChanged -= OnFacingChanged;
+
+        // The InputReader is a shared asset that outlives this character: a forgotten
+        // subscription would keep calling into it after a disconnect.
+        UnbindInput();
+
         base.OnNetworkDespawn();
     }
 

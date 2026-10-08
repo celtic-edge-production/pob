@@ -1,11 +1,13 @@
 using System.Collections;
+using Unity.Netcode;
 using UnityEngine;
 
 public class BombTrap : ATrap
 {
-    public bool isExploding = false;
+    [Tooltip("Seconds between the explosion and the removal of the bomb (length of the explosion animation).")]
+    [SerializeField] private float _explosionDuration = 1f;
 
-    private Vector3Int _targetCell;
+    private bool _hasExploded;
 
     protected override void Awake()
     {
@@ -14,36 +16,46 @@ public class BombTrap : ATrap
         isBombTrap = true;
     }
 
-    // Server only (TrapPlacementManager.PlaceTrap).
+    // Server only (TrapPlacementManager.PlaceTrap). Explodes as soon as it is placed, even in
+    // phase 1: the cell is free right away and another player can place a trap there.
     public void ExplodeBomb(Vector3Int targetCell)
     {
-        _targetCell = targetCell;
+        if (!IsServer || _hasExploded)
+            return;
 
-        if (!isExploding)
-        {
-            isExploding = true;
-            StartCoroutine(Explode());
-        }
+        _hasExploded = true;
+
+        TrapPlacementManager.Instance.RemoveTrapAt(targetCell);
+        PlayExplosionClientRpc();
+        StartCoroutine(DespawnAfterExplosion());
     }
 
-    private IEnumerator Explode()
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
+    private void PlayExplosionClientRpc()
     {
-        yield return new WaitForSeconds(1.0f);
+        // Trap animations are off in phase 1; this one is the feedback of the placement, so it is forced on.
+        _animator.enabled = true;
         _animator.SetBool("IsExploding", true);
     }
 
-    // Animation event: runs on every peer playing the animation, only the server removes the trap.
-    public void OnExplode()
+    // Server only. Timed here rather than by an animation event, so the removal never depends on
+    // whether the animator is running.
+    private IEnumerator DespawnAfterExplosion()
     {
-        if (IsServer)
-            TrapPlacementManager.Instance.RemoveTrapAt(_targetCell);
+        yield return new WaitForSeconds(_explosionDuration);
+
+        if (IsSpawned)
+            NetworkObject.Despawn(true);
     }
 
-    // Animation event: end of the explosion.
+    // Animation events still present in the explosion clip. The gameplay no longer waits for them
+    // (see ExplodeBomb and DespawnAfterExplosion); they are kept so the clip finds a receiver.
+    public void OnExplode()
+    {
+    }
+
     public void OnExplosionComplete()
     {
-        if (IsServer)
-            NetworkObject.Despawn(true);
     }
 
     // Animation event.

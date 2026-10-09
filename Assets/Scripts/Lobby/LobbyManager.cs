@@ -91,7 +91,7 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
 
             // Players standing on a plate when the level was launched were still "voting": the plates
             // were unbound before they could step off. The flag blocked the right click (release).
-            foreach (PlayerIdentity player in FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None))
+            foreach (PlayerIdentity player in Players.All)
                 player.IsVoting.Value = false;
         }
 
@@ -126,23 +126,24 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
     // Runs on every peer (each one sees the plate collision): only the voter's own machine reports.
     private void ReportVote(GameObject character, string levelName, bool selected)
     {
-        if (!IsSpawned || character.transform.parent == null)
+        if (!IsSpawned || character == null)
             return;
 
-        NetworkObject voter = character.transform.parent.GetComponentInParent<NetworkObject>();
+        PlayerCharacter playerCharacter = character.GetComponentInParent<PlayerCharacter>();
+        PlayerIdentity voter = playerCharacter != null ? playerCharacter.Player : null;
         if (voter == null || !voter.IsOwner)
             return;
 
         if (selected)
-            HandleLevelSelectedServerRpc(voter.NetworkObjectId, levelName);
+            HandleLevelSelectedServerRpc(levelName);
         else
-            HandleLevelDeSelectedServerRpc(voter.NetworkObjectId, levelName);
+            HandleLevelDeSelectedServerRpc(levelName);
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    private void HandleLevelSelectedServerRpc(ulong voterObjectId, string levelName, RpcParams rpcParams = default)
+    private void HandleLevelSelectedServerRpc(string levelName, RpcParams rpcParams = default)
     {
-        if (!TryGetVoter(voterObjectId, rpcParams, out PlayerIdentity voter))
+        if (!TryGetVoter(rpcParams, out PlayerIdentity voter))
             return;
 
         voter.IsVoting.Value = true;
@@ -151,9 +152,9 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    private void HandleLevelDeSelectedServerRpc(ulong voterObjectId, string levelName, RpcParams rpcParams = default)
+    private void HandleLevelDeSelectedServerRpc(string levelName, RpcParams rpcParams = default)
     {
-        if (!TryGetVoter(voterObjectId, rpcParams, out PlayerIdentity voter))
+        if (!TryGetVoter(rpcParams, out PlayerIdentity voter))
             return;
 
         voter.IsVoting.Value = false;
@@ -165,18 +166,10 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
         CheckPressurePlates();
     }
 
-    // A player may only vote for himself.
-    private bool TryGetVoter(ulong voterObjectId, RpcParams rpcParams, out PlayerIdentity voter)
+    // The voter is always the sender: a player can only vote for himself.
+    private static bool TryGetVoter(RpcParams rpcParams, out PlayerIdentity voter)
     {
-        voter = null;
-
-        if (!NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(voterObjectId, out NetworkObject voterObject))
-            return false;
-
-        if (!RpcValidation.SenderMatches(rpcParams, voterObject.OwnerClientId))
-            return false;
-
-        return voterObject.TryGetComponent(out voter);
+        return Players.TryGet(rpcParams.Receive.SenderClientId, out voter);
     }
 
     // Server only. Starts or stops the countdown depending on how many players voted.
@@ -206,9 +199,9 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
 
     public bool IsEveryonePlayed()
     {
-        foreach (PlayerIdentity player in FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None))
+        foreach (PlayerIdentity player in Players.All)
         {
-            if (!player.HaveCharacters.Value)
+            if (!player.HasCharacter)
                 return false;
         }
         return true;

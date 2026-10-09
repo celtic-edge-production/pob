@@ -13,8 +13,8 @@ public class APhase : NetworkBehaviour
     // Server only. Phase 1 shows the cursors (trap placement), phase 2 the characters.
     protected void SetPlayersPlaying(bool playing)
     {
-        foreach (PlayerIdentity identity in FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None))
-            identity.SetPlayingClientRpc(playing);
+        foreach (PlayerIdentity player in Players.All)
+            player.SetPlayingClientRpc(playing);
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]

@@ -147,8 +147,8 @@ public class PhaseManager : NetworkBehaviour
             if (rounds.FinishRound())
                 break;
 
-            // While the characters are still active (end of phase 2): Spawner only finds active
-            // characters, and they are hidden for the whole phase 1.
+            // While the characters are still active (end of phase 2): each owner teleports its own
+            // character, which it cannot do while it is hidden (the whole phase 1).
             ResetCharactersPosition();
         }
 

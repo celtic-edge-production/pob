@@ -20,6 +20,9 @@ public class PlayerCharacter : NetworkBehaviour
 
     public bool isFacingRight => _facingRight.Value;
 
+    // The player controlling this character, or null (free lobby character). Every peer.
+    public PlayerIdentity Player => Players.FindByCharacter(this);
+
     private SpriteRenderer _spriteRenderer;
     private PlayerMovement _movement;
     private PlayerCombat _combat;
@@ -99,7 +102,10 @@ public class PlayerCharacter : NetworkBehaviour
         // Never subscribe twice (double jump, double punch).
         UnbindInput();
 
-        if (transform.parent == null || !transform.parent.TryGetComponent(out PlayerIdentity player))
+        // Runs on the owner, so its player is this machine's. Not resolved through Player: the
+        // replicated character reference may arrive one tick after this RPC.
+        PlayerIdentity player = Players.Local;
+        if (player == null || player.Input == null)
             return;
 
         _Input = player.Input;

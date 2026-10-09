@@ -130,6 +130,8 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
         if (NetworkManager.Singleton != null)
             Destroy(NetworkManager.Singleton.gameObject);
 
+        // Not Players: what is left here is exactly what NGO did not despawn (so never registered or
+        // already unregistered). Free lobby characters included.
         foreach (PlayerCharacter character in FindObjectsByType<PlayerCharacter>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             Destroy(character.gameObject);
 
@@ -153,9 +155,7 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
 
     private void SendAllPlayersDataToNewClient(ulong newClientId)
     {
-        PlayerIdentity[] players = FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None);
-
-        foreach (var player in players)
+        foreach (PlayerIdentity player in Players.All)
         {
             if (player.Data == null || player.Cursor == null)
                 continue;

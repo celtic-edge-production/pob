@@ -7,9 +7,6 @@ public class PlayerIdentity : NetworkBehaviour
 
     #region Data Attributes
 
-    [HideInInspector]
-    public static PlayerIdentity LocalPlayer;
-
     [SerializeField]
     public InputReader Input;
 
@@ -24,17 +21,35 @@ public class PlayerIdentity : NetworkBehaviour
 
     [Header("GameObjects to control")]
     public GameObject Cursor;
-    public GameObject Characters;
 
-    public NetworkVariable<bool> HaveCharacters = new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    // The character this player controls, written by the server and replicated: every peer knows
+    // it, without searching the children (the character is hidden during phase 1).
+    private static readonly NetworkObjectReference NoCharacter = new((NetworkObject)null);
+    private readonly NetworkVariable<NetworkObjectReference> _character = new(NoCharacter);
+    private PlayerCharacter _resolvedCharacter;
+
+    // Known as soon as the value arrives, even before the character itself is resolved.
+    public bool HasCharacter => _character.Value.NetworkObjectId != NoCharacter.NetworkObjectId;
+
+    // Null when the player has none, or when this peer has not spawned it yet (retried next call).
+    public PlayerCharacter Character
+    {
+        get
+        {
+            if (!HasCharacter)
+                return null;
+
+            ulong characterId = _character.Value.NetworkObjectId;
+            if (_resolvedCharacter == null || _resolvedCharacter.NetworkObjectId != characterId)
+                _resolvedCharacter = ResolveCharacter();
+
+            return _resolvedCharacter;
+        }
+    }
 
     #endregion
 
     #region Methods
-
-    public void Awake()
-    {
-    }
 
     public override void OnNetworkSpawn()
     {
@@ -49,66 +64,83 @@ public class PlayerIdentity : NetworkBehaviour
         // the prefab, NGO would hand it (and its behaviour) to the host when the client leaves.
         if (IsServer)
             NetworkObject.DontDestroyWithOwner = false;
+
+        Players.Register(this);
+
+        // Right click (release the character): only acts in the lobby, with a character.
+        if (IsOwner && Input != null)
+            Input.MouseAction2Event += OnMouseAction2;
     }
 
     public override void OnNetworkDespawn()
     {
         // Server side, when the owner leaves: NGO has already moved the character to the root,
         // but it is still owned by the leaving client. Decide its fate before NGO does.
-        if (IsServer && !NetworkManager.ShutdownInProgress && Characters != null)
-            FreeCharacterOfLeavingOwner();
+        if (IsServer && !NetworkManager.ShutdownInProgress)
+        {
+            PlayerCharacter character = Character;
+            if (character != null)
+                FreeCharacterOfLeavingOwner(character);
+        }
 
         // The InputReader is a shared asset that outlives this identity: a forgotten
         // subscription would call into it in the next session (RPC on an unspawned object).
         if (Input != null)
             Input.MouseAction2Event -= OnMouseAction2;
 
+        Players.Unregister(this);
+
         base.OnNetworkDespawn();
     }
 
-    private void FreeCharacterOfLeavingOwner()
+    private PlayerCharacter ResolveCharacter()
     {
-        PlayerCharacter character = Characters.GetComponent<PlayerCharacter>();
+        NetworkManager networkManager = NetworkManager != null ? NetworkManager : NetworkManager.Singleton;
+        if (networkManager == null || networkManager.SpawnManager == null)
+            return null;
 
+        return _character.Value.TryGet(out NetworkObject characterObject, networkManager)
+            ? characterObject.GetComponent<PlayerCharacter>()
+            : null;
+    }
+
+    // Server only.
+    private void SetCharacter(PlayerCharacter character)
+    {
+        _character.Value = character != null ? new NetworkObjectReference(character.NetworkObject) : NoCharacter;
+        _resolvedCharacter = character;
+    }
+
+    // The identity is being despawned: its character reference goes with it, nothing to clear.
+    private void FreeCharacterOfLeavingOwner(PlayerCharacter character)
+    {
         // In a game scene, the character leaves with its player. Handing it to the server would
         // make it owned by client 0 (the host) and corrupt the bomb and score logic. The lobby
         // recreates every character when it reloads, so destroying it here is safe.
         if (LobbyManager.Instance == null)
         {
-            if (character != null && character.IsSpawned)
+            if (character.IsSpawned)
                 character.NetworkObject.Despawn(true);
-
-            Characters = null;
             return;
         }
 
         // In the lobby, give the character back so another player can pick it.
         // Runs immediately on the server: IsPlaying = false + RemoveOwnership().
-        if (character != null && character.IsSpawned)
+        if (character.IsSpawned)
             character.ReleaseFromPlayer();
 
-        if (Characters.transform.parent != null)
-            Characters.transform.SetParent(null);
+        if (character.transform.parent != null)
+            character.transform.SetParent(null);
 
         // Leave DontDestroyOnLoad so the character is cleaned up with the current scene.
-        SceneManager.MoveGameObjectToScene(Characters, SceneManager.GetActiveScene());
+        SceneManager.MoveGameObjectToScene(character.gameObject, SceneManager.GetActiveScene());
 
-        if (Characters.TryGetComponent(out LobbyCharacter lobbyCharacter))
+        if (character.TryGetComponent(out LobbyCharacter lobbyCharacter))
             lobbyCharacter.ResetToOriginalPosition();
-
-        Characters = null;
     }
 
     public void Init()
     {
-        if (IsOwner)
-        {
-            if (LocalPlayer != null && LocalPlayer != this)
-                Destroy(LocalPlayer.gameObject);
-
-            LocalPlayer = this;
-        }
-
         Data = GetComponentInChildren<PlayerData>();
         Cursor = GetComponentInChildren<CursorController>().gameObject;
 
@@ -176,7 +208,7 @@ public class PlayerIdentity : NetworkBehaviour
         var AU_Cursor = Cursor.GetComponent<CursorController>();
 
         AU_Cursor.ChangeColor(playerColor);
-        AU_Cursor.gameObject.SetActive(!HaveCharacters.Value);
+        AU_Cursor.gameObject.SetActive(!HasCharacter);
     }
 
     public void SetPlayerID(ulong playerID)
@@ -207,7 +239,7 @@ public class PlayerIdentity : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     public void RequestOwnerShipServerRpc()
     {
-        if (Characters != null || Cursor == null)
+        if (HasCharacter || Cursor == null)
         {
             return;
         }
@@ -221,34 +253,22 @@ public class PlayerIdentity : NetworkBehaviour
             return;
         }
 
-        PlayerCharacter player = obj.GetComponent<PlayerCharacter>();
+        PlayerCharacter character = obj.GetComponent<PlayerCharacter>();
 
-        if (player == null || player.IsPlaying.Value)
+        if (character == null || character.IsPlaying.Value)
         {
             return;
         }
 
-        Characters = obj;
-        Characters.transform.SetParent(gameObject.transform);
+        // Parented to the persistent identity: the character follows its player into the level.
+        character.transform.SetParent(gameObject.transform);
+        SetCharacter(character);
 
-        player.AssignToPlayer(OwnerClientId);
+        character.AssignToPlayer(OwnerClientId);
 
         cursor.OnClick -= SelectCharacter;
         cursor.IsActive.Value = false;
         cursor.gameObject.SetActive(false);
-
-        SetCharacterOnClientRpc();
-    }
-
-    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
-    private void SetCharacterOnClientRpc()
-    {
-        if (IsOwner)
-        {
-            HaveCharacters.Value = true;
-
-            Input.MouseAction2Event += OnMouseAction2;
-        }
     }
 
     public void RemoveCharacter()
@@ -260,29 +280,23 @@ public class PlayerIdentity : NetworkBehaviour
         RemoveOwnerShipServerRpc();
     }
 
-    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
-    public void UnbindClientRpc()
-    {
-        if (IsOwner && Characters == null)
-        {
-            HaveCharacters.Value = false;
-
-            Input.MouseAction2Event -= OnMouseAction2;
-        }
-    }
-
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     public void ResetPositionServerRpc()
     {
-        if (Characters && Characters.TryGetComponent(out LobbyCharacter lobbyCharacter))
-            lobbyCharacter.ResetToOriginalPosition();
+        ResetCharacterToLobbySlot();
         ResetPositionClientRpc();
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void ResetPositionClientRpc()
     {
-        if (Characters && Characters.TryGetComponent(out LobbyCharacter lobbyCharacter))
+        ResetCharacterToLobbySlot();
+    }
+
+    private void ResetCharacterToLobbySlot()
+    {
+        PlayerCharacter character = Character;
+        if (character != null && character.TryGetComponent(out LobbyCharacter lobbyCharacter))
             lobbyCharacter.ResetToOriginalPosition();
     }
 
@@ -295,40 +309,30 @@ public class PlayerIdentity : NetworkBehaviour
         ReleaseCharacter();
     }
 
+    // Server only.
     public void ReleaseCharacter()
     {
-        if (Characters == null)
+        PlayerCharacter character = Character;
+        if (character == null)
             return;
-        Characters.transform.SetParent(null);
 
-        PlayerCharacter player = Characters.GetComponent<PlayerCharacter>();
+        character.transform.SetParent(null);
+        character.ReleaseFromPlayer();
 
-        player.ReleaseFromPlayer();
-
-        SceneManager.MoveGameObjectToScene(Characters, SceneManager.GetActiveScene());
+        SceneManager.MoveGameObjectToScene(character.gameObject, SceneManager.GetActiveScene());
 
         // The server owns it again: only now can it move it back to its slot (the owner's own
         // reset, sent just before, may arrive after the ownership change and do nothing).
-        if (Characters.TryGetComponent(out LobbyCharacter lobbyCharacter))
+        if (character.TryGetComponent(out LobbyCharacter lobbyCharacter))
             lobbyCharacter.ResetToOriginalPosition();
 
-        Characters = null;
+        SetCharacter(null);
 
         CursorController cursor = Cursor.GetComponent<CursorController>();
 
         cursor.OnClick += SelectCharacter;
         cursor.IsActive.Value = true;
         cursor.gameObject.SetActive(true);
-
-        RemoveOwnerShipClientRpc();
-        UnbindClientRpc();
-    }
-
-    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
-    public void RemoveOwnerShipClientRpc()
-    {
-        if (IsOwner)
-            HaveCharacters.Value = false;
     }
 
     // Phase 1 controls the cursor (trap placement), phase 2 the character.
@@ -338,26 +342,18 @@ public class PlayerIdentity : NetworkBehaviour
     {
         RefreshInitInCaseOfBadSync();
 
-        // Characters is only assigned on the server: re-resolve it from the children on the
-        // clients, including inactive ones (the character is hidden during phase 1).
-        if (Characters == null)
-        {
-            PlayerCharacter child = GetComponentInChildren<PlayerCharacter>(true);
-            if (child != null)
-                Characters = child.gameObject;
-        }
-
-        if (Characters == null)
+        PlayerCharacter character = Character;
+        if (character == null)
         {
             Debug.LogWarning($"[PlayerIdentity] Player {OwnerClientId} has no character, cannot switch control mode.");
             return;
         }
 
         Cursor.SetActive(!playing);
-        Characters.SetActive(playing);
+        character.gameObject.SetActive(playing);
 
         if (playing)
-            Characters.GetComponent<PlayerCharacter>().ActivateCamera();
+            character.ActivateCamera();
     }
 
     #endregion
@@ -367,14 +363,11 @@ public class PlayerIdentity : NetworkBehaviour
     public void OnMouseAction2()
     {
         // -- Detect if we are in the lobby (Because if we are not, the LobbyManager is not initialized)
-        if (LobbyManager.Instance)
-        {
-            if (IsOwner && !IsVoting.Value)
-            {
-                if (HaveCharacters.Value == true)
-                    RemoveCharacter();
-            }
-        }
+        if (LobbyManager.Instance == null)
+            return;
+
+        if (IsOwner && !IsVoting.Value && HasCharacter)
+            RemoveCharacter();
     }
 
     #endregion

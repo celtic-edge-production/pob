@@ -230,8 +230,9 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     public void ResetPlayers()
     {
         players.Clear();
-        foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))
+        foreach (PlayerCharacter character in Players.Characters)
         {
+            TransferManager player = character.GetComponent<TransferManager>();
             player.Revive();
             players.Add(player);
             ulong playerId = player.OwnerClientId;
@@ -389,8 +390,8 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
         BombManager.Instance.StopRound();
 
-        foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))
-            player.Revive();
+        foreach (PlayerCharacter character in Players.Characters)
+            character.GetComponent<TransferManager>().Revive();
 
         TrapPlacementManager.Instance.DespawnAllTraps();
         ShowGameMessageClientRpc("Not enough players left, back to the lobby...");
@@ -443,8 +444,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         }
 
         // After the main camera is back: DesactivateCamera never leaves a peer without a camera.
-        PlayerIdentity localPlayer = PlayerIdentity.LocalPlayer;
-        PlayerCharacter localCharacter = localPlayer != null ? localPlayer.GetComponentInChildren<PlayerCharacter>(true) : null;
+        PlayerCharacter localCharacter = Players.Local != null ? Players.Local.Character : null;
         if (localCharacter != null)
             localCharacter.DesactivateCamera();
     }
@@ -454,19 +454,17 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void ShowScoreboardClientRpc(ulong[] survivorIds)
     {
-        PlayerIdentity[] identities = FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None);
-
         for (int i = 0; i < PlayerIds.Count; i++)
         {
-            PlayerIdentity identity = identities.FirstOrDefault(p => p.OwnerClientId == PlayerIds[i]);
+            PlayerCharacter character = Players.TryGet(PlayerIds[i], out PlayerIdentity player) ? player.Character : null;
 
-            if (identity == null || identity.Characters == null)
+            if (character == null)
             {
                 Debug.LogWarning($"[Scoreboard] No character found for player {PlayerIds[i]}.");
                 continue;
             }
 
-            Sprite sprite = identity.Characters.GetComponent<SpriteRenderer>().sprite;
+            Sprite sprite = character.GetComponent<SpriteRenderer>().sprite;
 
             // Same index as PlayerIds, so the image stays aligned with the score and status columns.
             if (sprite != null)

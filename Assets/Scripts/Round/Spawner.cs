@@ -6,12 +6,13 @@ public class Spawner : MonoBehaviour
     [Header("Spawner Settings")]
     public Vector3[] spawnPoints;
 
-    // Server only. Only finds active characters: call it while they are visible.
+    // Server only. Each owner teleports its own character, which must be active to do so:
+    // call it while the characters are visible.
     public void ResetCharactersPosition()
     {
-        PlayerCharacter[] players = FindObjectsByType<PlayerCharacter>(FindObjectsSortMode.None);
+        List<PlayerCharacter> players = new List<PlayerCharacter>(Players.Characters);
 
-        if (spawnPoints.Length < players.Length)
+        if (spawnPoints.Length < players.Count)
         {
             Debug.LogError("Not enough spawn points for the number of players!");
             return;

@@ -1,4 +1,3 @@
-using System.Linq;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -161,20 +160,8 @@ public class Seashell : ATrap
     [Rpc(SendTo.ClientsAndHost)]
     private void TeleportPlayerClientRpc(ulong playerId, Vector3 position)
     {
-        // Bug corrige : "NetworkManager.Singleton.ConnectedClients" n'est accessible
-        // que sur le serveur (meme souci que dans GameRoundManager). Ce ClientRpc
-        // s'execute sur tous les clients, donc ca plantait pour tout non-hote.
-        // Remplace par une recherche via OwnerClientId, valide sur n'importe quel pair.
-        PlayerIdentity playerController = FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None)
-            .FirstOrDefault(p => p.OwnerClientId == playerId);
-
-        if (playerController == null)
-        {
-            Debug.LogError($"Player with ID {playerId} not found.");
-            return;
-        }
-
-        GameObject playerObj = playerController.Characters;
+        // Players and the replicated character: valid on every peer.
+        PlayerCharacter playerObj = Players.TryGet(playerId, out PlayerIdentity player) ? player.Character : null;
 
         if (playerObj == null)
         {
@@ -212,7 +199,8 @@ public class Seashell : ATrap
             if (AttachSeashell(tempSeaShell))
             {
                 return;
-            };
+            }
+            ;
         }
     }
 
@@ -226,7 +214,7 @@ public class Seashell : ATrap
 
             IsLinked.Value = true;
             JumeledSeashell.Value = seashell.gameObject;
-     
+
             Debug.Log("Linking Seashell with another Seashell");
             return true;
         }

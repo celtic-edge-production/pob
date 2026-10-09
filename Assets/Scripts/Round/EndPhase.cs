@@ -11,8 +11,8 @@ public class EndPhase : APhase
 
     public override void Begin()
     {
-        foreach (var player in FindObjectsByType<TransferManager>(FindObjectsSortMode.None))
-            player.Revive();
+        foreach (PlayerCharacter character in Players.Characters)
+            character.GetComponent<TransferManager>().Revive();
 
         TrapPlacementManager.Instance.DespawnAllTraps();
 
@@ -35,11 +35,8 @@ public class EndPhase : APhase
 
     private static string GetCharacterName(ulong clientId)
     {
-        PlayerIdentity identity = FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None)
-            .FirstOrDefault(p => p.OwnerClientId == clientId);
+        PlayerCharacter character = Players.TryGet(clientId, out PlayerIdentity player) ? player.Character : null;
 
-        return identity != null && identity.Characters != null
-            ? identity.Characters.name
-            : $"Player {clientId}";
+        return character != null ? character.name : $"Player {clientId}";
     }
 }

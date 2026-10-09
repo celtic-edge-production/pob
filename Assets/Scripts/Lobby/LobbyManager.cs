@@ -88,6 +88,11 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
         {
             foreach (LobbyCharacterSlot slot in FindObjectsByType<LobbyCharacterSlot>(FindObjectsSortMode.None))
                 slot.SpawnIfMissing();
+
+            // Players standing on a plate when the level was launched were still "voting": the plates
+            // were unbound before they could step off. The flag blocked the right click (release).
+            foreach (PlayerIdentity player in FindObjectsByType<PlayerIdentity>(FindObjectsSortMode.None))
+                player.IsVoting.Value = false;
         }
 
         foreach (LobbyCharacter character in FindObjectsByType<LobbyCharacter>(FindObjectsSortMode.None))

@@ -20,41 +20,51 @@ public class CursorController : NetworkBehaviour
 
     #endregion
 
-    public void OnEnable()
+    public override void OnNetworkSpawn()
     {
+        base.OnNetworkSpawn();
+
+        // Subscribed for the whole spawn, not in OnEnable: a hidden cursor must still hear the
+        // server showing it again. Subscribed in OnEnable, it stopped listening as soon as it was
+        // hidden, so a client never got its cursor back after releasing its character (the host
+        // did, the server reactivating its object directly).
         IsActive.OnValueChanged += HandleIsActiveChanged;
 
+        if (IsOwner)
+            CursorColor.OnValueChanged += HandleColorChanged;
+    }
+
+    public void OnEnable()
+    {
         if (!IsOwner) return;
 
         Cursor.lockState = CursorLockMode.Confined;
         Cursor.visible = false;
 
-        CursorColor.OnValueChanged += (oldValue, newValue) => ChangeColor(newValue);
-
-        if (_Input != null)
-        {
-            _Input.MouseAction1Event -= OnCursorAction;
-            if (IsActive.Value)
-                _Input.MouseAction1Event += OnCursorAction;
-        }
-    }
-
-    private void OnDisable()
-    {
-        IsActive.OnValueChanged -= HandleIsActiveChanged;
+        RefreshClickSubscription();
     }
 
     private void HandleIsActiveChanged(bool oldValue, bool newValue)
     {
+        // Shown: OnEnable refreshes the click subscription. Hidden: drop it here.
         gameObject.SetActive(newValue);
+        RefreshClickSubscription();
+    }
 
+    private void HandleColorChanged(Color oldValue, Color newValue)
+    {
+        ChangeColor(newValue);
+    }
+
+    // At most one subscription, only while the cursor is active.
+    private void RefreshClickSubscription()
+    {
         if (_Input == null)
             return;
 
-        if (newValue)
+        _Input.MouseAction1Event -= OnCursorAction;
+        if (IsActive.Value)
             _Input.MouseAction1Event += OnCursorAction;
-        else
-            _Input.MouseAction1Event -= OnCursorAction;
     }
 
     public override void OnNetworkDespawn()
@@ -67,6 +77,9 @@ public class CursorController : NetworkBehaviour
             _Input = null;
         }
 
+        IsActive.OnValueChanged -= HandleIsActiveChanged;
+        CursorColor.OnValueChanged -= HandleColorChanged;
+
         OnClick = null;
         base.OnNetworkDespawn();
     }
@@ -78,8 +91,7 @@ public class CursorController : NetworkBehaviour
             if (transform.parent && transform.parent.TryGetComponent(out PlayerIdentity player))
             {
                 _Input = player.Input;
-
-                _Input.MouseAction1Event += OnCursorAction;
+                RefreshClickSubscription();
             }
         }
     }

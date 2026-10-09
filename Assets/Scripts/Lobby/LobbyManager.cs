@@ -82,10 +82,13 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
 
     private void ResetLobby()
     {
-        PlayerCleaner playerCleaner = FindFirstObjectByType<PlayerCleaner>();
-
-        if (playerCleaner != null)
-            playerCleaner.RemoveDuplicatedCharacters();
+        // The server spawns the characters missing from their slots. The ones picked in the last
+        // game came back with their players and are left alone: nothing is ever duplicated.
+        if (IsServer)
+        {
+            foreach (LobbyCharacterSlot slot in FindObjectsByType<LobbyCharacterSlot>(FindObjectsSortMode.None))
+                slot.SpawnIfMissing();
+        }
 
         foreach (LobbyCharacter character in FindObjectsByType<LobbyCharacter>(FindObjectsSortMode.None))
             character.ResetToOriginalPosition();

@@ -307,6 +307,11 @@ public class PlayerIdentity : NetworkBehaviour
 
         SceneManager.MoveGameObjectToScene(Characters, SceneManager.GetActiveScene());
 
+        // The server owns it again: only now can it move it back to its slot (the owner's own
+        // reset, sent just before, may arrive after the ownership change and do nothing).
+        if (Characters.TryGetComponent(out LobbyCharacter lobbyCharacter))
+            lobbyCharacter.ResetToOriginalPosition();
+
         Characters = null;
 
         CursorController cursor = Cursor.GetComponent<CursorController>();

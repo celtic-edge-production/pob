@@ -86,7 +86,7 @@ GameObject:
   - component: {fileID: 6919988788283945519}
   - component: {fileID: 7206306002984591082}
   m_Layer: 0
-  m_Name: Player
+  m_Name: Cucumber
   m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -161,7 +161,7 @@ SpriteRenderer:
   m_SortingLayer: 4
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: f992fa4017136034fad330dce00cf4d7, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 890dfec1f8e30fa4d93aca88f50af09b, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -209,7 +209,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 1, y: 1}
+    oldSize: {x: 0.64, y: 0.68}
     newSize: {x: 0.58, y: 0.58}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -254,7 +254,7 @@ Animator:
   m_GameObject: {fileID: 3915564223245348154}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: b6c86596533b9624aacc435b6eece62a, type: 2}
+  m_Controller: {fileID: 9100000, guid: 2c57bea4a54b5294f9486813de647ce5, type: 2}
   m_CullingMode: 0
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
@@ -278,7 +278,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  GlobalObjectIdHash: 1216001367
+  GlobalObjectIdHash: 94457414
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -308,22 +308,6 @@ MonoBehaviour:
     m_InternalValue: 0
   _playerCamera: {fileID: 6601386283137246487}
   needDefaultFlip: 0
-  punchForce: 5
-  punchRadius: 1
-  stunIndicator: {fileID: 0}
-  Data: {fileID: 11400000, guid: a421d6d20d46d0842bb6d7c29c966bdd, type: 2}
-  _groundCheckPoint: {fileID: 3138148644663970821}
-  _groundCheckSize: {x: 0.26, y: 0.09}
-  _frontWallCheckPoint: {fileID: 8336974880855152601}
-  _backWallCheckPoint: {fileID: 3395651465156952034}
-  _wallCheckSize: {x: 0.17, y: 0.36}
-  _groundLayer:
-    serializedVersion: 2
-    m_Bits: 512
-  bombPrefab: {fileID: 845028398676703419, guid: 988dcd23729b0ac49b25de2fa319b533, type: 3}
-  bombSpawnPoint: {fileID: 712227974927386029}
-  maxChargeTime: 5
-  maxHoldDownTime: 2.5
 --- !u!114 &1371214973467533495
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -375,12 +359,12 @@ MonoBehaviour:
       NameHash: 1516382235
       Synchronize: 1
       ParameterType: 9
-    - name: isFalling
-      NameHash: -1829127916
-      Synchronize: 1
-      ParameterType: 4
     - name: isJumping
       NameHash: -357477766
+      Synchronize: 1
+      ParameterType: 4
+    - name: isFalling
+      NameHash: -1829127916
       Synchronize: 1
       ParameterType: 4
   AnimatorParametersExpanded: 0
@@ -485,7 +469,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36dff217db4df1f46917517d7adaf1a0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _OriginalPosition: {x: 0, y: 0, z: 0}
 --- !u!61 &4755851833700447207
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -524,7 +507,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 1, y: 1}
+    oldSize: {x: 0.64, y: 0.68}
     newSize: {x: 0.58, y: 0.58}
     adaptiveTilingThreshold: 0.5
     drawMode: 0

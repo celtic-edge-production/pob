@@ -34,8 +34,8 @@ public class LobbyCharacterSlot : MonoBehaviour
         // it back to the pool, a game scene despawns it: PlayerIdentity.FreeCharacterOfLeavingOwner).
         spawned.DontDestroyWithOwner = true;
 
-        // Unpicked characters go with the lobby. A picked one is a child of its persistent
-        // PlayerIdentity, so it follows its player into the level.
+        // Unpicked characters go with the lobby. A picked one follows its player into the level
+        // (PlayerCharacter.ApplyPersistence turns DestroyWithScene off while it is played).
         spawned.Spawn(destroyWithScene: true);
     }
 

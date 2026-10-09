@@ -44,11 +44,15 @@ public class PlayerCharacter : NetworkBehaviour
     {
         base.OnNetworkSpawn();
         _facingRight.OnValueChanged += OnFacingChanged;
+
+        IsPlaying.OnValueChanged += OnIsPlayingChanged;
+        ApplyPersistence(IsPlaying.Value);
     }
 
     public override void OnNetworkDespawn()
     {
         _facingRight.OnValueChanged -= OnFacingChanged;
+        IsPlaying.OnValueChanged -= OnIsPlayingChanged;
 
         // The InputReader is a shared asset that outlives this character: a forgotten
         // subscription would keep calling into it after a disconnect.
@@ -60,6 +64,20 @@ public class PlayerCharacter : NetworkBehaviour
     private void OnFacingChanged(bool previous, bool facingRight)
     {
         _spriteRenderer.flipX = facingRight ? needDefaultFlip : !needDefaultFlip;
+    }
+
+    private void OnIsPlayingChanged(bool previous, bool playing)
+    {
+        ApplyPersistence(playing);
+    }
+
+    // A picked character follows its player from scene to scene: on a scene load, NGO carries over
+    // every spawned object that has no parent and DestroyWithScene = false, on every peer. The flag
+    // is only sent when the object spawns, so every peer sets it from IsPlaying (also fired on the
+    // server when it writes it). A free lobby character stays with the lobby.
+    private void ApplyPersistence(bool playing)
+    {
+        NetworkObject.DestroyWithScene = !playing;
     }
 
     // Owner only (PlayerMovement).

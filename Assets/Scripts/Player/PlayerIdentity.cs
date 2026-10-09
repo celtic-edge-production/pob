@@ -1,6 +1,5 @@
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class PlayerIdentity : NetworkBehaviour
 {
@@ -55,9 +54,8 @@ public class PlayerIdentity : NetworkBehaviour
     {
         base.OnNetworkSpawn();
 
-        // Every peer (not only the owner) must keep every identity across scene loads.
-        // Otherwise, when the lobby unloads, NGO despawns the in-scene character parented to a
-        // non-persistent identity (DestroyWithScene is true for in-scene placed objects).
+        // Every peer keeps every identity, with its cursor and data, across scene loads.
+        // Its character is no longer a child: it persists on its own (PlayerCharacter.ApplyPersistence).
         DontDestroyOnLoad(gameObject);
 
         // The identity must disappear with its owner. If "Don't Destroy With Owner" were set on
@@ -74,8 +72,8 @@ public class PlayerIdentity : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
-        // Server side, when the owner leaves: NGO has already moved the character to the root,
-        // but it is still owned by the leaving client. Decide its fate before NGO does.
+        // Server side, when the owner leaves: its character is kept by NGO (DontDestroyWithOwner),
+        // decide its fate here.
         if (IsServer && !NetworkManager.ShutdownInProgress)
         {
             PlayerCharacter character = Character;
@@ -125,15 +123,9 @@ public class PlayerIdentity : NetworkBehaviour
         }
 
         // In the lobby, give the character back so another player can pick it.
-        // Runs immediately on the server: IsPlaying = false + RemoveOwnership().
+        // Runs immediately on the server: IsPlaying = false (goes with the lobby again) + RemoveOwnership().
         if (character.IsSpawned)
             character.ReleaseFromPlayer();
-
-        if (character.transform.parent != null)
-            character.transform.SetParent(null);
-
-        // Leave DontDestroyOnLoad so the character is cleaned up with the current scene.
-        SceneManager.MoveGameObjectToScene(character.gameObject, SceneManager.GetActiveScene());
 
         if (character.TryGetComponent(out LobbyCharacter lobbyCharacter))
             lobbyCharacter.ResetToOriginalPosition();
@@ -260,10 +252,8 @@ public class PlayerIdentity : NetworkBehaviour
             return;
         }
 
-        // Parented to the persistent identity: the character follows its player into the level.
-        character.transform.SetParent(gameObject.transform);
+        // IsPlaying = true: from now on the character follows its player into the level.
         SetCharacter(character);
-
         character.AssignToPlayer(OwnerClientId);
 
         cursor.OnClick -= SelectCharacter;
@@ -316,10 +306,8 @@ public class PlayerIdentity : NetworkBehaviour
         if (character == null)
             return;
 
-        character.transform.SetParent(null);
+        // IsPlaying = false: the character goes with the lobby again.
         character.ReleaseFromPlayer();
-
-        SceneManager.MoveGameObjectToScene(character.gameObject, SceneManager.GetActiveScene());
 
         // The server owns it again: only now can it move it back to its slot (the owner's own
         // reset, sent just before, may arrive after the ownership change and do nothing).

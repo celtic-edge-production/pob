@@ -54,7 +54,7 @@ public class BombManager : NetworkSingleton<BombManager>
         if (!NetworkManager.Singleton.ConnectedClients.ContainsKey(newHolderId))
             return false;
 
-        NetworkObject newHolder = NetworkManager.Singleton.SpawnManager.GetPlayerNetworkObject(newHolderId);
+        TransferManager newHolder = GetBombState(newHolderId);
 
         if (!CanTransferBombTo(newHolder, newHolderId))
             return false;
@@ -73,10 +73,16 @@ public class BombManager : NetworkSingleton<BombManager>
         return true;
     }
 
-    private bool CanTransferBombTo(NetworkObject newHolder, ulong newHolderId)
+    // The bomb state of a player's character, or null (unknown player, no character).
+    // Through the registry: the character is not a child of its player object.
+    private static TransferManager GetBombState(ulong clientId)
     {
-        TransferManager target = newHolder != null ? newHolder.GetComponentInChildren<TransferManager>() : null;
+        PlayerCharacter character = Players.TryGet(clientId, out PlayerIdentity player) ? player.Character : null;
+        return character != null ? character.GetComponent<TransferManager>() : null;
+    }
 
+    private bool CanTransferBombTo(TransferManager target, ulong newHolderId)
+    {
         // Checked here, on the server: the client-side checks in TransferManager are only a
         // pre-filter, and a thrown bomb (BombProjectile) has none.
         bool isAlive = target != null && target.IsAlive.Value;
@@ -89,17 +95,12 @@ public class BombManager : NetworkSingleton<BombManager>
     // pass it on. A bomb already thrown (hasBomb is false) can always change hands.
     private bool TryReleaseCurrentHolder()
     {
-        NetworkObject currentHolder = NetworkManager.Singleton.SpawnManager.GetPlayerNetworkObject(bombHolderId.Value);
-
-        // No holder yet: first bomb of the round.
-        if (currentHolder == null)
-            return true;
-
-        TransferManager holderBomb = currentHolder.GetComponentInChildren<TransferManager>();
+        // No holder yet (first bomb of the round), or he left.
+        TransferManager holderBomb = GetBombState(bombHolderId.Value);
         if (holderBomb == null)
             return true;
 
-        PlayerCombat holderCombat = currentHolder.GetComponentInChildren<PlayerCombat>();
+        PlayerCombat holderCombat = holderBomb.GetComponent<PlayerCombat>();
         if (holderCombat != null && holderCombat.IsStunned.Value && holderBomb.HasBomb.Value)
             return false;
 
@@ -108,10 +109,8 @@ public class BombManager : NetworkSingleton<BombManager>
         return true;
     }
 
-    private void GiveBombTo(NetworkObject newHolder, ulong newHolderId)
+    private void GiveBombTo(TransferManager newHolderBomb, ulong newHolderId)
     {
-        TransferManager newHolderBomb = newHolder != null ? newHolder.GetComponentInChildren<TransferManager>() : null;
-
         if (newHolderBomb != null)
             newHolderBomb.HasBomb.Value = true;
         else
@@ -128,17 +127,12 @@ public class BombManager : NetworkSingleton<BombManager>
 
     private void ExplodeBombHolder()
     {
-        NetworkObject player = NetworkManager.Singleton.SpawnManager.GetPlayerNetworkObject(bombHolderId.Value);
+        TransferManager currentHolder = GetBombState(bombHolderId.Value);
 
-        if (player != null)
-        {
-            TransferManager currentHolder = player.GetComponentInChildren<TransferManager>();
-
-            if (currentHolder != null)
-                currentHolder.MarkAsDead();
-            else
-                Debug.LogWarning("TransferManager not found on player.");
-        }
+        if (currentHolder != null)
+            currentHolder.MarkAsDead();
+        else
+            Debug.LogWarning($"[BombManager] No character found for bomb holder {bombHolderId.Value}.");
 
         // StopRound() resets oldBombHolderId, read it first.
         ulong assistId = oldBombHolderId;

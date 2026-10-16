@@ -9,191 +9,12 @@ using System;
 
 public class GameRoundManager : NetworkSingleton<GameRoundManager>
 {
-    [Serializable]
-    public class IntStringPair : INetworkSerializable, IEquatable<IntStringPair>
-    {
-        public int IntValue;
-        public string StringValue;
-
-        public IntStringPair()
-        {
-            IntValue = 0;
-            StringValue = "";
-        }
-
-        public IntStringPair(int intValue, string stringValue)
-        {
-            IntValue = intValue;
-            StringValue = stringValue;
-        }
-
-        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
-        {
-            serializer.SerializeValue(ref IntValue);
-            serializer.SerializeValue(ref StringValue);
-        }
-
-        public bool Equals(IntStringPair other)
-        {
-            if (other == null)
-                return false;
-
-            return IntValue == other.IntValue && StringValue == other.StringValue;
-        }
-
-        public override bool Equals(object obj)
-        {
-            return obj is IntStringPair other && Equals(other);
-        }
-
-        public override int GetHashCode()
-        {
-            return IntValue.GetHashCode() ^ (StringValue?.GetHashCode() ?? 0);
-        }
-    }
-
-    [Serializable]
-    public class CustomDictionary : INetworkSerializable, IEnumerable<KeyValuePair<ulong, List<IntStringPair>>>, IEquatable<CustomDictionary>
-    {
-        public Dictionary<ulong, List<IntStringPair>> Data = new Dictionary<ulong, List<IntStringPair>>();
-
-        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
-        {
-            int count = Data.Count;
-            if (serializer.IsWriter)
-            {
-                serializer.SerializeValue(ref count);
-                foreach (var pair in Data)
-                {
-                    ulong key = pair.Key;
-                    serializer.SerializeValue(ref key);
-
-                    int listCount = pair.Value.Count;
-                    serializer.SerializeValue(ref listCount);
-                    foreach (var item in pair.Value)
-                    {
-                        item.NetworkSerialize(serializer);
-                    }
-                }
-            }
-            else
-            {
-                serializer.SerializeValue(ref count);
-                Data.Clear();
-                for (int i = 0; i < count; i++)
-                {
-                    ulong key = 0;
-                    serializer.SerializeValue(ref key);
-
-                    int listCount = 0;
-                    serializer.SerializeValue(ref listCount);
-
-                    var list = new List<IntStringPair>();
-                    for (int j = 0; j < listCount; j++)
-                    {
-                        var item = new IntStringPair();
-                        item.NetworkSerialize(serializer);
-                        list.Add(item);
-                    }
-
-                    Data[key] = list;
-                }
-            }
-        }
-
-        // Wrapper for ContainsKey
-        public bool ContainsKey(ulong key)
-        {
-            return Data.ContainsKey(key);
-        }
-
-        // Wrapper for Add
-        public void Add(ulong key, List<IntStringPair> value)
-        {
-            Data.Add(key, value);
-        }
-
-        // Wrapper for Remove
-        public bool Remove(ulong key)
-        {
-            return Data.Remove(key);
-        }
-
-        // Wrapper for TryGetValue
-        public bool TryGetValue(ulong key, out List<IntStringPair> value)
-        {
-            return Data.TryGetValue(key, out value);
-        }
-
-        // Indexer for accessing elements
-        public List<IntStringPair> this[ulong key]
-        {
-            get => Data[key]; // Throws KeyNotFoundException if the key doesn't exist
-            set => Data[key] = value;
-        }
-
-        // Implement IEnumerable
-        public IEnumerator<KeyValuePair<ulong, List<IntStringPair>>> GetEnumerator()
-        {
-            return Data.GetEnumerator();
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-
-        // Implement IEquatable<CustomDictionary>
-        public bool Equals(CustomDictionary other)
-        {
-            if (other == null)
-                return false;
-
-            if (Data.Count != other.Data.Count)
-                return false;
-
-            foreach (var kvp in Data)
-            {
-                if (!other.Data.TryGetValue(kvp.Key, out var otherValue))
-                    return false;
-
-                if (kvp.Value.Count != otherValue.Count)
-                    return false;
-
-                for (int i = 0; i < kvp.Value.Count; i++)
-                {
-                    if (!kvp.Value[i].Equals(otherValue[i]))
-                        return false;
-                }
-            }
-
-            return true;
-        }
-
-        public override bool Equals(object obj)
-        {
-            return obj is CustomDictionary other && Equals(other);
-        }
-
-        public override int GetHashCode()
-        {
-            int hash = 17;
-            foreach (var kvp in Data)
-            {
-                hash = hash * 31 + kvp.Key.GetHashCode();
-                foreach (var pair in kvp.Value)
-                {
-                    hash = hash * 31 + pair.GetHashCode();
-                }
-            }
-            return hash;
-        }
-    }
-
     public List<TransferManager> players = new();
 
     public NetworkVariable<Dictionary<ulong, int>> PlayerTotalScores { get; private set; }
-    public NetworkVariable<CustomDictionary> PlayerRoundScores = new();
+
+    // This round's scoreboard lines, every player mixed, in scoring order. NGO replicates the changes.
+    public NetworkList<ScoreLine> ScoreLines = new();
     public NetworkList<ulong> PlayerIds = new NetworkList<ulong>();
 
     private int roundCount = 0;
@@ -230,6 +51,10 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     public void ResetPlayers()
     {
         players.Clear();
+
+        // A new round starts with no lines (players who left included).
+        ScoreLines.Clear();
+
         foreach (PlayerCharacter character in Players.Characters)
         {
             TransferManager player = character.GetComponent<TransferManager>();
@@ -239,18 +64,6 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
             if (!PlayerTotalScores.Value.ContainsKey(playerId))
                 PlayerTotalScores.Value[playerId] = 0;
-
-            if (!PlayerRoundScores.Value.ContainsKey(playerId))
-                PlayerRoundScores.Value[playerId] = new();
-            else
-                PlayerRoundScores.Value[playerId].Clear();
-        }
-
-        // Drop the round scores of players who left. Safe here: the scoreboard is closed.
-        foreach (ulong id in PlayerRoundScores.Value.Data.Keys.ToList())
-        {
-            if (!players.Exists(p => p.OwnerClientId == id))
-                PlayerRoundScores.Value.Remove(id);
         }
 
         MarkScoresDirty();
@@ -258,11 +71,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
     public void AddRoundScore(ulong playerId, int score, string reason)
     {
-        if (!PlayerRoundScores.Value.ContainsKey(playerId))
-            PlayerRoundScores.Value[playerId] = new();
-
-        PlayerRoundScores.Value[playerId].Add(new IntStringPair(score, reason));
-        MarkScoresDirty();
+        ScoreLines.Add(new ScoreLine(playerId, score, reason));
     }
 
     public void AddTotalScore(ulong playerId, int score)
@@ -318,7 +127,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     {
         ResetCameraClientRpc();
 
-        var scoreDeltas = ComputeTotalScoreDeltas(PlayerRoundScores.Value);
+        Dictionary<ulong, int> scoreDeltas = ScoreTally.SumByPlayer(CopyScoreLines());
         foreach (var kvp in scoreDeltas)
         {
             // Skip players who left during the round.
@@ -398,12 +207,26 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         StartCoroutine(ReturnToLobbyAfter(5.0f));
     }
 
-    // NGO already detects in-place changes by comparing these collections with a copy on every
-    // network tick. Calling it explicitly documents that they are replicated to the clients.
+    // NGO already detects in-place changes by comparing the dictionary with a copy on every
+    // network tick. Calling it explicitly documents that it is replicated to the clients.
     private void MarkScoresDirty()
     {
         PlayerTotalScores.CheckDirtyState();
-        PlayerRoundScores.CheckDirtyState();
+    }
+
+    // Every peer: one player's lines of this round, in scoring order.
+    public List<ScoreLine> GetScoreLines(ulong playerId)
+    {
+        return ScoreTally.ForPlayer(CopyScoreLines(), playerId);
+    }
+
+    // NetworkList can be walked with foreach but is not an IEnumerable<T>: copied for ScoreTally.
+    private List<ScoreLine> CopyScoreLines()
+    {
+        List<ScoreLine> lines = new(ScoreLines.Count);
+        foreach (ScoreLine line in ScoreLines)
+            lines.Add(line);
+        return lines;
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
@@ -411,22 +234,6 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     {
         winnerText.gameObject.SetActive(true);
         winnerText.text = message;
-    }
-
-    public static Dictionary<ulong, int> ComputeTotalScoreDeltas(CustomDictionary roundScores)
-    {
-        var deltas = new Dictionary<ulong, int>();
-
-        foreach (var player in roundScores)
-        {
-            int sum = 0;
-            foreach (var score in player.Value)
-                sum += score.IntValue;
-
-            deltas[player.Key] = sum;
-        }
-
-        return deltas;
     }
 
     // Every peer: back to the shared main camera, and off with this peer's own character camera.

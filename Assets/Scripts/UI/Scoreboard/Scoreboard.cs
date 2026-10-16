@@ -1,9 +1,8 @@
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
-using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
-using static GameRoundManager;
 
 public class Scoreboard : MonoBehaviour
 {
@@ -20,7 +19,7 @@ public class Scoreboard : MonoBehaviour
 
     // State of the roundScore animation
     private int _MaxPlayerRoundScoreIndex;
-    private ulong _CurrentPlayerId;
+    private List<ScoreLine> _CurrentPlayerScores = new();
     private int _CurrentPlayerRoundScoreIndex;
     private int _PlayerIdInList;
 
@@ -71,6 +70,7 @@ public class Scoreboard : MonoBehaviour
         _CurrentPlayerRoundScoreIndex = 0;
         _MaxPlayerRoundScoreIndex = 0;
         _PlayerIdInList = 0;
+        _CurrentPlayerScores.Clear();
 
         for (int i = 0; i < _RoundTextScoreList.Length; i++)
         {
@@ -116,8 +116,8 @@ public class Scoreboard : MonoBehaviour
     {
         // Set text
         TMP_Text text = _RoundTextScoreList[_PlayerIdInList].GetComponent<TMP_Text>();
-        IntStringPair element = _GameRoundManager.PlayerRoundScores.Value[_CurrentPlayerId][_CurrentPlayerRoundScoreIndex];
-        text.text = element.StringValue + " " + element.IntValue + " Points !";
+        ScoreLine line = _CurrentPlayerScores[_CurrentPlayerRoundScoreIndex];
+        text.text = $"{line.Reason} {line.Points} Points !";
 
         // Reset the animator state and start the animation
         Animator animator = _RoundTextScoreList[_PlayerIdInList].GetComponent<Animator>();
@@ -140,12 +140,14 @@ public class Scoreboard : MonoBehaviour
         {
             ulong playerId = _GameRoundManager.PlayerIds[i];
 
-            if (_GameRoundManager.PlayerRoundScores.Value.ContainsKey(playerId) &&
-                _GameRoundManager.PlayerRoundScores.Value[playerId].Count > 0)
+            // Taken once per player: the lines played one after the other cannot change under it.
+            List<ScoreLine> lines = _GameRoundManager.GetScoreLines(playerId);
+
+            if (lines.Count > 0)
             {
                 _PlayerIdInList = i;
-                _CurrentPlayerId = playerId;
-                _MaxPlayerRoundScoreIndex = _GameRoundManager.PlayerRoundScores.Value[_CurrentPlayerId].Count;
+                _CurrentPlayerScores = lines;
+                _MaxPlayerRoundScoreIndex = lines.Count;
 
                 SetText();
 

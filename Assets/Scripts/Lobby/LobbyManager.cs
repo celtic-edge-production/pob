@@ -95,6 +95,10 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
                 player.IsVoting.Value = false;
         }
 
+        // Every peer: characters shown, cursors only for the players without a character.
+        foreach (PlayerIdentity player in Players.All)
+            player.ApplyLobbyVisibility();
+
         foreach (LobbyCharacter character in FindObjectsByType<LobbyCharacter>(FindObjectsSortMode.None))
             character.ResetToOriginalPosition();
     }

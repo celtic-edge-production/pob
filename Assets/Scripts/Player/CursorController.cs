@@ -14,40 +14,61 @@ public class CursorController : NetworkBehaviour
     public NetworkVariable<bool> IsActive = new(true, NetworkVariableReadPermission.Everyone);
 
     private InputReader _Input;
+    private Hideable _hideable;
 
     [Header("Cursor Settings")]
     public float joystickSpeed = 10f;
 
     #endregion
 
+    private void Awake()
+    {
+        _hideable = Hideable.On(this);
+        _hideable.VisibilityChanged += OnVisibilityChanged;
+    }
+
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
 
         // Subscribed for the whole spawn, not in OnEnable: a hidden cursor must still hear the
-        // server showing it again. Subscribed in OnEnable, it stopped listening as soon as it was
-        // hidden, so a client never got its cursor back after releasing its character (the host
-        // did, the server reactivating its object directly).
+        // server showing it again.
         IsActive.OnValueChanged += HandleIsActiveChanged;
 
         if (IsOwner)
             CursorColor.OnValueChanged += HandleColorChanged;
     }
 
-    public void OnEnable()
+    public override void OnDestroy()
     {
-        if (!IsOwner) return;
+        if (_hideable != null)
+            _hideable.VisibilityChanged -= OnVisibilityChanged;
 
-        Cursor.lockState = CursorLockMode.Confined;
-        Cursor.visible = false;
+        base.OnDestroy();
+    }
+
+    // Every peer: hidden while the player has a character, and during phase 2.
+    public bool IsVisible => _hideable.IsVisible;
+
+    public void SetVisible(bool visible)
+    {
+        _hideable.SetVisible(visible);
+    }
+
+    private void OnVisibilityChanged(bool visible)
+    {
+        if (visible && IsOwner)
+        {
+            UnityEngine.Cursor.lockState = CursorLockMode.Confined;
+            UnityEngine.Cursor.visible = false;
+        }
 
         RefreshClickSubscription();
     }
 
     private void HandleIsActiveChanged(bool oldValue, bool newValue)
     {
-        // Shown: OnEnable refreshes the click subscription. Hidden: drop it here.
-        gameObject.SetActive(newValue);
+        SetVisible(newValue);
         RefreshClickSubscription();
     }
 

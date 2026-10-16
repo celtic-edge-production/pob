@@ -19,35 +19,8 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
         NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
         NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
         NetworkManager.Singleton.OnServerStopped += OnServerStopped;
-        NetworkManager.Singleton.OnPreShutdown += ReactivateHiddenSpawnedObjects;
 
         DontDestroyOnLoad(gameObject);
-    }
-
-    public override void OnDestroy()
-    {
-        if (NetworkManager.Singleton != null)
-            NetworkManager.Singleton.OnPreShutdown -= ReactivateHiddenSpawnedObjects;
-
-        base.OnDestroy();
-    }
-
-    // On every peer, at the start of any shutdown (quit, disconnect, host stopping).
-    // NGO only despawns the ACTIVE objects when it shuts down (FindObjectsByType excludes inactive ones).
-    // Cursors, characters and hidden traps are deactivated with SetActive(false) at times, so they stayed
-    // "spawned" after the shutdown; destroying them later was taken for an invalid Destroy, and the
-    // NetworkLog call reporting it crashed (NullReferenceException in NetworkLog.Header).
-    private void ReactivateHiddenSpawnedObjects()
-    {
-        NetworkManager networkManager = NetworkManager.Singleton;
-        if (networkManager == null || networkManager.SpawnManager == null)
-            return;
-
-        foreach (NetworkObject spawned in networkManager.SpawnManager.SpawnedObjectsList)
-        {
-            if (spawned != null && !spawned.gameObject.activeSelf)
-                spawned.gameObject.SetActive(true);
-        }
     }
 
     private void OnClientConnected(ulong clientId)

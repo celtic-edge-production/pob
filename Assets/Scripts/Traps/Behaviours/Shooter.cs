@@ -55,7 +55,7 @@ public class Shooter : ATrap
             return;
         }
 
-        networkObject.Spawn();
+        networkObject.Spawn(destroyWithScene: true); // Belongs to the level: never carried into the next scene.
         arrow.GetComponent<Rigidbody2D>().linearVelocity = GetShootDirection() * _ShootSpeed;
     }
 

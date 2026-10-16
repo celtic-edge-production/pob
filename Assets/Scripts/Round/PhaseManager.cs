@@ -147,8 +147,7 @@ public class PhaseManager : NetworkBehaviour
             if (rounds.FinishRound())
                 break;
 
-            // While the characters are still active (end of phase 2): each owner teleports its own
-            // character, which it cannot do while it is hidden (the whole phase 1).
+            // At the end of phase 2, before the characters are hidden for the next phase 1.
             ResetCharactersPosition();
         }
 

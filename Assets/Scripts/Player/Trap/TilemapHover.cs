@@ -24,10 +24,22 @@ public class TilemapHover : NetworkBehaviour
     private TrapOrientation _lastSentOrientation;
     private bool _hasSentPreview;
 
-    public void OnDisable()
+    private Hideable _hideable;
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        // The cursor's visibility (CursorController): this component only acts while it is shown.
+        _hideable = Hideable.On(this);
+        _hideable.VisibilityChanged += OnVisibilityChanged;
+    }
+
+    // Hidden (phase 2, character picked): whatever trap was being set is dropped.
+    private void OnVisibilityChanged(bool visible)
     {
         // An RPC cannot be sent once despawned (scene change, disconnect).
-        if (!IsOwner || !IsSpawned)
+        if (visible || !IsOwner || !IsSpawned)
             return;
 
         ResetTilemapHoverServerRpc();
@@ -35,6 +47,9 @@ public class TilemapHover : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        if (_hideable != null)
+            _hideable.VisibilityChanged -= OnVisibilityChanged;
+
         // The InputReader is a shared asset that outlives this cursor: release it, or the next
         // session's clicks still reach this one.
         if (_Input != null)
@@ -75,7 +90,7 @@ public class TilemapHover : NetworkBehaviour
 
     private void Update()
     {
-        if (!IsOwner || TrapPlacementManager.Instance == null)
+        if (!IsOwner || TrapPlacementManager.Instance == null || !IsShown)
             return;
 
         _worldPosition = TrapUtils.GetMousePosition();
@@ -127,8 +142,14 @@ public class TilemapHover : NetworkBehaviour
         return null;
     }
 
+    // The input events keep coming while the cursor is hidden: they are ignored then.
+    private bool IsShown => _hideable != null && _hideable.IsVisible;
+
     private void OnMouseAction1()
     {
+        if (!IsShown)
+            return;
+
         if (!isSettingTrap.Value)
         {
             TrySelectTrapUnderCursor();
@@ -164,7 +185,7 @@ public class TilemapHover : NetworkBehaviour
 
     private void Turn(TrapOrientation orientation)
     {
-        if (isSettingTrap.Value && _heldTrap != null)
+        if (IsShown && isSettingTrap.Value && _heldTrap != null)
             _orientation = orientation;
     }
 }

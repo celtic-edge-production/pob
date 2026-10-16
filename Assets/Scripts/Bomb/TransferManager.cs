@@ -184,7 +184,7 @@ public class TransferManager : NetworkBehaviour
         GameObject bomb = Instantiate(_bombPrefab, _bombSpawnPoint.position, Quaternion.identity);
         NetworkObject bombNetworkObject = bomb.GetComponent<NetworkObject>();
         if (bombNetworkObject != null)
-            bombNetworkObject.Spawn();
+            bombNetworkObject.Spawn(destroyWithScene: true); // Belongs to the level, like every game object.
 
         bomb.GetComponent<BombProjectile>().LaunchBomb(OwnerClientId, ChargeToForce(chargeTimeClient), facingRight ? 1 : -1);
     }

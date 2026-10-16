@@ -109,7 +109,9 @@ public class TrapSelection : MonoBehaviour
             return null;
         }
 
-        networkObject.Spawn();
+        // Spawn() keeps the object across scene loads by default: a game ending during the chest
+        // (not enough players) brought it into the lobby. It belongs to the level.
+        networkObject.Spawn(destroyWithScene: true);
         return chest;
     }
 

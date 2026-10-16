@@ -6,8 +6,7 @@ public class Spawner : MonoBehaviour
     [Header("Spawner Settings")]
     public Vector3[] spawnPoints;
 
-    // Server only. Each owner teleports its own character, which must be active to do so:
-    // call it while the characters are visible.
+    // Server only. Each owner teleports its own character (hidden or not).
     public void ResetCharactersPosition()
     {
         List<PlayerCharacter> players = new List<PlayerCharacter>(Players.Characters);

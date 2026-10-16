@@ -175,7 +175,8 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
             0,
             UnityEngine.Random.Range(-spawnHeight, spawnHeight) / 100.0f);
 
-        trap.NetworkObject.Spawn();
+        // Belongs to the level: never carried into the next scene (Spawn() keeps it by default).
+        trap.NetworkObject.Spawn(destroyWithScene: true);
         trap.trapId.Value = _nextTrapId++;
         _traps.Add(trap);
     }
@@ -407,11 +408,11 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     private static void SetPlacedTrapsVisible(bool visible)
     {
-        // Inactive traps included: they are the ones to show again.
-        foreach (ATrap trap in FindObjectsByType<ATrap>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        // Hidden, not deactivated: the traps stay active objects for NGO (Hideable).
+        foreach (ATrap trap in FindObjectsByType<ATrap>(FindObjectsSortMode.None))
         {
             if (trap.IsSpawned && TrapStageRules.IsOnMap(trap.Stage.Value))
-                trap.gameObject.SetActive(visible);
+                Hideable.On(trap).SetVisible(visible);
         }
     }
 

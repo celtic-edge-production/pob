@@ -200,7 +200,7 @@ public class PlayerIdentity : NetworkBehaviour
         var AU_Cursor = Cursor.GetComponent<CursorController>();
 
         AU_Cursor.ChangeColor(playerColor);
-        AU_Cursor.gameObject.SetActive(!HasCharacter);
+        AU_Cursor.SetVisible(!HasCharacter);
     }
 
     public void SetPlayerID(ulong playerID)
@@ -256,9 +256,9 @@ public class PlayerIdentity : NetworkBehaviour
         SetCharacter(character);
         character.AssignToPlayer(OwnerClientId);
 
+        // Hides the cursor on every peer, the server included (CursorController.HandleIsActiveChanged).
         cursor.OnClick -= SelectCharacter;
         cursor.IsActive.Value = false;
-        cursor.gameObject.SetActive(false);
     }
 
     public void RemoveCharacter()
@@ -320,7 +320,6 @@ public class PlayerIdentity : NetworkBehaviour
 
         cursor.OnClick += SelectCharacter;
         cursor.IsActive.Value = true;
-        cursor.gameObject.SetActive(true);
     }
 
     // Phase 1 controls the cursor (trap placement), phase 2 the character.
@@ -337,11 +336,28 @@ public class PlayerIdentity : NetworkBehaviour
             return;
         }
 
-        Cursor.SetActive(!playing);
-        character.gameObject.SetActive(playing);
+        Cursor.GetComponent<CursorController>().SetVisible(!playing);
+        character.SetVisible(playing);
 
         if (playing)
             character.ActivateCamera();
+    }
+
+    // Every peer, when the lobby opens: characters always shown, the cursor only for a player
+    // without one. A game cut short in phase 1 (not enough players) left them the other way round.
+    // Runs before SetupPlayer has created the cursor in a new session: nothing to hide then.
+    public void ApplyLobbyVisibility()
+    {
+        PlayerCharacter character = Character;
+        if (character != null)
+            character.SetVisible(true);
+
+        CursorController cursor = Cursor != null
+            ? Cursor.GetComponent<CursorController>()
+            : GetComponentInChildren<CursorController>(true);
+
+        if (cursor != null)
+            cursor.SetVisible(!HasCharacter);
     }
 
     #endregion

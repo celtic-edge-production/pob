@@ -27,6 +27,7 @@ public class PlayerCharacter : NetworkBehaviour
     private PlayerMovement _movement;
     private PlayerCombat _combat;
     private TransferManager _bomb;
+    private Hideable _hideable;
 
     private InputReader _Input;
 
@@ -38,6 +39,7 @@ public class PlayerCharacter : NetworkBehaviour
         _movement = GetComponent<PlayerMovement>();
         _combat = GetComponent<PlayerCombat>();
         _bomb = GetComponent<TransferManager>();
+        _hideable = Hideable.On(this);
     }
 
     public override void OnNetworkSpawn()
@@ -184,11 +186,20 @@ public class PlayerCharacter : NetworkBehaviour
 
     #region State
 
-    // Alive (bomb), not knocked out, not stunned. Uses replicated state: valid on every peer.
+    // Visible (phase 2 or lobby), alive (bomb), not knocked out, not stunned. Every peer hides and
+    // shows the character at the same time, the rest is replicated: valid on every peer.
     public bool CanAct()
     {
-        return _bomb.IsAlive.Value
+        return _hideable.IsVisible && _bomb.IsAlive.Value
             && !_combat.IsStunned.Value && !_combat.IsKnockedOut.Value;
+    }
+
+    // Every peer. Hidden during phase 1: no sprite, no collision, no physics, no input.
+    public bool IsVisible => _hideable.IsVisible;
+
+    public void SetVisible(bool visible)
+    {
+        _hideable.SetVisible(visible);
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]

@@ -3,7 +3,6 @@ using System.Linq;
 using TMPro;
 using Unity.Netcode;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class LobbyManager : NetworkSingleton<LobbyManager>
 {
@@ -250,13 +249,7 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
         string levelName = votedLevels[Random.Range(0, votedLevels.Count)];
 
         UnloadLobby();
-        ChangeSceneServerRpc(levelName);
-    }
-
-    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Server)]
-    public void ChangeSceneServerRpc(string sceneName)
-    {
-        NetworkManager.Singleton.SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
+        SceneLoader.LoadForEveryone(levelName);
     }
 
     private void DisplayRoomCode()
@@ -272,4 +265,4 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
     }
 
     #endregion
-}
+}

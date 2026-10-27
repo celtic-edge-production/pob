@@ -23,6 +23,12 @@ public class Phase1 : APhase
         _trapSelection.Begin(_TrapChestPrefab);
     }
 
+    // Server only: the game ends during phase 1.
+    public void StopSelection()
+    {
+        _trapSelection.Stop();
+    }
+
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void ResetCameraClientRpc()
     {
@@ -35,4 +41,4 @@ public class Phase1 : APhase
                 mainCameraController.ResetCamera();
         }
     }
-}
+}

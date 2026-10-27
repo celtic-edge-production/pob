@@ -2,8 +2,6 @@ using Unity.Netcode;
 using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
-using System.Collections;
-using UnityEngine.SceneManagement;
 using System.Linq;
 using System;
 
@@ -203,8 +201,9 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
             character.GetComponent<TransferManager>().Revive();
 
         TrapPlacementManager.Instance.DespawnAllTraps();
-        ShowGameMessageClientRpc("Not enough players left, back to the lobby...");
-        StartCoroutine(ReturnToLobbyAfter(5.0f));
+
+        // The message and the return to the lobby belong to the sequencer.
+        _PhaseManager.OnNotEnoughPlayers();
     }
 
     // NGO already detects in-place changes by comparing the dictionary with a copy on every
@@ -310,21 +309,9 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         return roundsPlayed >= maxRounds || totalScores.Any(score => score >= maxScore);
     }
 
-    // Server only.
-    public void LoadLobby()
-    {
-        NetworkManager.Singleton.SceneManager.LoadScene("Lobby", LoadSceneMode.Single);
-    }
-
-    private IEnumerator ReturnToLobbyAfter(float delay)
-    {
-        yield return new WaitForSeconds(delay);
-        LoadLobby();
-    }
-
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void DesactivateWinnerTextClientRpc()
     {
         winnerText.gameObject.SetActive(false);
     }
-}
+}

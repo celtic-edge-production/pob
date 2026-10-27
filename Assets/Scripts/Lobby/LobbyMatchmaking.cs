@@ -4,7 +4,6 @@ using UnityEngine;
 
 public class LobbyMatchmaking : MonoBehaviour
 {
-    [SerializeField] private SceneManagerNetwork m_SceneManagerNetwork;
     [SerializeField] private TMP_InputField _LobbyCodeInputField;
     [SerializeField] private TMP_Text _MessageText;
 
@@ -72,7 +71,7 @@ public class LobbyMatchmaking : MonoBehaviour
                 _currentHostCode = code;
                 if (_MessageText != null)
                     _MessageText.text = "Code du lobby : " + code;
-                m_SceneManagerNetwork.LoadSceneRpc("Lobby");
+                SceneLoader.LoadForEveryone(SceneNames.Lobby);
             },
             onError: message =>
             {

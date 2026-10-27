@@ -28,6 +28,15 @@ public class TrapSelection : MonoBehaviour
         _sequence = StartCoroutine(RunSequence(chestPrefab));
     }
 
+    // Server only: the game ends before the chest has finished (not enough players).
+    public void Stop()
+    {
+        if (_sequence != null)
+            StopCoroutine(_sequence);
+
+        _sequence = null;
+    }
+
     // False once the session stops (quit, disconnect, back to the lobby) or the chest is gone:
     // the sequence must not send anything any more.
     private static bool IsSessionRunning(TrapChest chest)
@@ -125,4 +134,4 @@ public class TrapSelection : MonoBehaviour
         if (!isDone())
             Debug.LogWarning($"[TrapSelection] No end event for the {step} animation after {_animationTimeout}s, going on.");
     }
-}
+}

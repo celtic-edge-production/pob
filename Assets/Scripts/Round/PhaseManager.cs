@@ -38,6 +38,8 @@ public class PhaseManager : NetworkBehaviour
     [SerializeField] private float _scoreboardTimeout = 60f;
     [Tooltip("After the scoreboard has closed, before the next phase 1.")]
     [SerializeField] private float _afterScoreboardDelay = 3f;
+    [Tooltip("How long \"not enough players\" stays on screen before going back to the lobby.")]
+    [SerializeField] private float _notEnoughPlayersDelay = 5f;
     // How long the winner is shown: EndPhase's Display Duration (kept there, already set in the scene).
 
     // Replicated so any peer can tell where the game is (debug, UI).
@@ -51,11 +53,15 @@ public class PhaseManager : NetworkBehaviour
     private bool _roundEnded;
     private ulong[] _survivorIds = Array.Empty<ulong>();
     private bool _scoreboardClosed;
+    private bool _isEndingEarly;
 
     // Also true once the session stops (quit, disconnect): the sequence must not send anything any more.
     private static bool IsGameOver =>
         GameRoundManager.Instance == null || GameRoundManager.Instance.IsGameOver
-        || NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening || NetworkManager.Singleton.ShutdownInProgress;
+        || !IsSessionRunning;
+
+    private static bool IsSessionRunning =>
+        NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening && !NetworkManager.Singleton.ShutdownInProgress;
 
     private void Start()
     {
@@ -83,6 +89,22 @@ public class PhaseManager : NetworkBehaviour
 
         _survivorIds = survivorIds;
         _roundEnded = true;
+    }
+
+    // GameRoundManager: a player left and fewer than two are still here. The game ends here too,
+    // instead of in a coroutine of its own: every way out of a game goes through this sequencer.
+    public void OnNotEnoughPlayers()
+    {
+        if (!IsServer || _isEndingEarly)
+            return;
+
+        _isEndingEarly = true;
+
+        // The game sequence and whatever it started (countdown, trap activation, chest).
+        StopAllCoroutines();
+        phase1.StopSelection();
+
+        StartCoroutine(EndForLackOfPlayers());
     }
 
     // The host's scoreboard has finished its closing animation.
@@ -151,13 +173,23 @@ public class PhaseManager : NetworkBehaviour
             ResetCharactersPosition();
         }
 
-        // Only reached when the game is won (a game ended for lack of players returns on its own).
+        // Only reached when the game is won (a game ended for lack of players: EndForLackOfPlayers).
         _currentPhase.Value = GamePhase.EndPhase;
         endGame.Begin();
         yield return new WaitForSeconds(endGame.DisplayDuration);
 
-        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
-            rounds.LoadLobby();
+        SceneLoader.LoadForEveryone(SceneNames.Lobby);
+    }
+
+    private IEnumerator EndForLackOfPlayers()
+    {
+        _currentPhase.Value = GamePhase.EndPhase;
+        GameRoundManager.Instance.ShowGameMessageClientRpc("Not enough players left, back to the lobby...");
+
+        yield return new WaitForSeconds(_notEnoughPlayersDelay);
+
+        if (IsSessionRunning)
+            SceneLoader.LoadForEveryone(SceneNames.Lobby);
     }
 
     private IEnumerator Countdown()
@@ -210,4 +242,4 @@ public class PhaseManager : NetworkBehaviour
         if (!isDone())
             Debug.LogWarning($"[PhaseManager] No end event for the {step} after {timeout}s, going on.");
     }
-}
+}

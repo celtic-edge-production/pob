@@ -3,7 +3,7 @@ using UnityEngine;
 
 // Phase 1 cursor: picks a trap in the chest, then moves, turns and places it.
 // The player owns the trap he holds (TrapPlacementManager gives it to him) and moves it locally:
-// the preview is instant on his side, and the trap's ClientNetworkTransform shows it to the others.
+// the preview is instant on his side, and the trap's NetworkTransform (owner authority) shows it to the others.
 // The server only answers whether the preview is valid, and checks everything again on placement.
 public class TilemapHover : NetworkBehaviour
 {
@@ -188,4 +188,4 @@ public class TilemapHover : NetworkBehaviour
         if (IsShown && isSettingTrap.Value && _heldTrap != null)
             _orientation = orientation;
     }
-}
+}

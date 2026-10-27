@@ -1,7 +1,7 @@
 using UnityEngine;
 
 // Running, jumping, wall jumping, sliding and gravity of a character. Runs on the owner only:
-// the ClientNetworkTransform replicates the result. Input comes through PlayerCharacter.
+// its owner-authority NetworkTransform replicates the result. Input comes through PlayerCharacter.
 [RequireComponent(typeof(PlayerCharacter))]
 public class PlayerMovement : MonoBehaviour
 {
@@ -452,4 +452,4 @@ public class PlayerMovement : MonoBehaviour
         Gizmos.DrawWireCube(_backWallCheckPoint.position, _wallCheckSize);
     }
 
-}
+}

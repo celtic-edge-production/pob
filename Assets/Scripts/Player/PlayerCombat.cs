@@ -109,7 +109,7 @@ public class PlayerCombat : NetworkBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        // Every peer sees this contact: only the owner reacts. Its ClientNetworkTransform
+        // Every peer sees this contact: only the owner reacts. Its NetworkTransform (owner authority)
         // shows the result to the others (it used to be applied once per connected peer).
         if (IsOwner && _character.CanAct())
             HitByTrap(collision);
@@ -154,7 +154,7 @@ public class PlayerCombat : NetworkBehaviour
 
     #region Knock-out and stun
 
-    // Owner only: the force goes where the physics is authoritative (ClientNetworkTransform).
+    // Owner only: the force goes where the physics is authoritative (NetworkTransform with owner authority).
     private void KnockOut(Vector2 force)
     {
         _rigidBody.AddForce(force, ForceMode2D.Impulse);
@@ -217,4 +217,4 @@ public class PlayerCombat : NetworkBehaviour
         Gizmos.DrawWireSphere(transform.position, _punchRadius);
     }
 
-}
+}

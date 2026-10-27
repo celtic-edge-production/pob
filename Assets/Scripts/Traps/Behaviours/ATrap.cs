@@ -164,7 +164,7 @@ public abstract class ATrap : NetworkBehaviour
     }
 
     // Puts the trap on this cell with this orientation, in one step. Run by whoever moves the trap:
-    // the placing player while he owns it (ClientNetworkTransform replicates it), the server once placed.
+    // the placing player while he owns it (its owner-authority NetworkTransform replicates it), the server once placed.
     // The sprite pivot must be centred: the transform goes to the centre of the oriented shape.
     public void ShowAt(Vector3Int cell, TrapOrientation orientation)
     {
@@ -213,4 +213,4 @@ public abstract class ATrap : NetworkBehaviour
         if (_actionSound != null)
             AudioSource.PlayClipAtPoint(_actionSound, position);
     }
-}
+}

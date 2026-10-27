@@ -317,12 +317,12 @@ MonoBehaviour:
   m_GameObject: {fileID: 3915564223245348154}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6f89f3b62535191428e68c6a9ab5c4eb, type: 3}
+  m_Script: {fileID: 11500000, guid: e8d0727d5ae3244e3b569694d3912374, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
   NetworkAnimatorExpanded: 0
-  AuthorityMode: 0
+  AuthorityMode: 1
   m_Animator: {fileID: 4981835717891904537}
   TransitionStateInfoList: []
   AnimatorParameterEntries:
@@ -377,7 +377,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 3915564223245348154}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: da52bf8bbc1de48cfb221a6ff30f7972, type: 3}
+  m_Script: {fileID: 11500000, guid: e96cb6065543e43c4a752faaa1468eb1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
@@ -392,7 +392,7 @@ MonoBehaviour:
   RotationMaxInterpolationTime: 0.1
   ScaleLerpSmoothing: 1
   ScaleMaxInterpolationTime: 0.1
-  AuthorityMode: 0
+  AuthorityMode: 1
   TickSyncChildren: 0
   UseUnreliableDeltas: 0
   SyncPositionX: 1

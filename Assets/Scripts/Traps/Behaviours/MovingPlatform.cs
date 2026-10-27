@@ -17,7 +17,7 @@ public class MovingPlatform : ATrap
 
     protected override void FixedUpdate()
     {
-        // Server only: the server-owned ClientNetworkTransform replicates the rotation.
+        // Server only: the server-owned NetworkTransform (owner authority) replicates the rotation.
         if (!IsServer || !IsActive || _animationCurve == null)
             return;
 
@@ -39,4 +39,4 @@ public class MovingPlatform : ATrap
             elapsedTime = 0.0f;
         }
     }
-}
+}

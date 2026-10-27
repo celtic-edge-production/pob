@@ -14,18 +14,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Resources/Scenes/Old Galleon.unity
     guid: 7335248eeed975a45b040883ea0eddba
-  - enabled: 1
-    path: Assets/Resources/Scenes/GridTestLab.unity
-    guid: 08ee0c52ba14d6047a64dfbe23a631a9
-  - enabled: 1
-    path: Assets/Resources/Scenes/ResetScene.unity
-    guid: 4061109680e48a34f80348a772caba80
   - enabled: 0
     path: Assets/Resources/Scenes/Network/NetworkScene.unity
     guid: 27ea3791706b6514b8fc2ff4ca5ddc2d
-  - enabled: 0
-    path: Assets/Resources/Scenes/Network/Network.unity
-    guid: 11747659f0379e840844462956a1c4f3
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 0c3757d8958709740957509bf587808d, type: 3}
   m_UseUCBPForAssetBundles: 0

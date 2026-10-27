@@ -74,28 +74,67 @@ public class PhaseManager : NetworkBehaviour
 
     #region Events (server)
 
-    // TrapPlacementManager: every trap of this phase 1 has been placed.
-    public void OnPlacementDone()
+    // The game's managers only announce what happened; this sequencer listens and decides. None
+    // of them calls it back (they used to, in both directions).
+    public override void OnNetworkSpawn()
     {
-        if (IsServer)
-            _placementDone = true;
-    }
+        base.OnNetworkSpawn();
 
-    // GameRoundManager: one player or none left alive.
-    public void OnRoundEnded(ulong[] survivorIds)
-    {
         if (!IsServer)
             return;
 
+        GameRoundManager.Instance.RoundEnded += OnRoundEnded;
+        GameRoundManager.Instance.NotEnoughPlayers += OnNotEnoughPlayers;
+        GameRoundManager.Instance.ScoreboardClosed += OnScoreboardClosed;
+        TrapPlacementManager.Instance.PlacementDone += OnPlacementDone;
+        PlayerManager.PlayerLeft += OnPlayerLeft;
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (GameRoundManager.Instance != null)
+        {
+            GameRoundManager.Instance.RoundEnded -= OnRoundEnded;
+            GameRoundManager.Instance.NotEnoughPlayers -= OnNotEnoughPlayers;
+            GameRoundManager.Instance.ScoreboardClosed -= OnScoreboardClosed;
+        }
+
+        if (TrapPlacementManager.Instance != null)
+            TrapPlacementManager.Instance.PlacementDone -= OnPlacementDone;
+
+        PlayerManager.PlayerLeft -= OnPlayerLeft;
+
+        base.OnNetworkDespawn();
+    }
+
+    // PlayerManager: another player has left. The round rules first; the traps only while the
+    // game goes on (a game ended for lack of players has already removed them).
+    private void OnPlayerLeft(ulong clientId)
+    {
+        GameRoundManager.Instance.HandlePlayerLeft(clientId);
+
+        if (!GameRoundManager.Instance.IsGameOver)
+            TrapPlacementManager.Instance.HandlePlayerLeft(clientId);
+    }
+
+    // TrapPlacementManager: every trap of this phase 1 has been placed.
+    private void OnPlacementDone()
+    {
+        _placementDone = true;
+    }
+
+    // GameRoundManager: one player or none left alive.
+    private void OnRoundEnded(ulong[] survivorIds)
+    {
         _survivorIds = survivorIds;
         _roundEnded = true;
     }
 
     // GameRoundManager: a player left and fewer than two are still here. The game ends here too,
     // instead of in a coroutine of its own: every way out of a game goes through this sequencer.
-    public void OnNotEnoughPlayers()
+    private void OnNotEnoughPlayers()
     {
-        if (!IsServer || _isEndingEarly)
+        if (_isEndingEarly)
             return;
 
         _isEndingEarly = true;
@@ -107,11 +146,10 @@ public class PhaseManager : NetworkBehaviour
         StartCoroutine(EndForLackOfPlayers());
     }
 
-    // The host's scoreboard has finished its closing animation.
-    public void OnScoreboardClosed()
+    // GameRoundManager: the host's scoreboard has finished its closing animation.
+    private void OnScoreboardClosed()
     {
-        if (IsServer)
-            _scoreboardClosed = true;
+        _scoreboardClosed = true;
     }
 
     #endregion
@@ -242,4 +280,4 @@ public class PhaseManager : NetworkBehaviour
         if (!isDone())
             Debug.LogWarning($"[PhaseManager] No end event for the {step} after {timeout}s, going on.");
     }
-}
+}

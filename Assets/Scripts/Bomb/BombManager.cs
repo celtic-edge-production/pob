@@ -10,16 +10,23 @@ public class BombManager : NetworkSingleton<BombManager>
 {
     private const double NoExplosion = -1;
 
+    // No holder, no assist.
+    public const ulong NoPlayer = ulong.MaxValue;
+
+    // Server only: the holder has just exploded. Gives the player who passed him the bomb last
+    // (NoPlayer if none). GameRoundManager scores and decides whether the round goes on.
+    public event System.Action<ulong> BombExploded;
+
     [Tooltip("Base fuse in seconds, divided by (alive players - 1), plus 0 to 5 random seconds.")]
     public float bombTimer = 60f;
 
-    public NetworkVariable<ulong> bombHolderId = new NetworkVariable<ulong>(ulong.MaxValue);
+    public NetworkVariable<ulong> bombHolderId = new NetworkVariable<ulong>(NoPlayer);
 
     // Server time of the explosion, or NoExplosion between bombs. Sent once per bomb:
     // every peer computes the remaining time locally from the synchronized server clock.
     public NetworkVariable<double> ExplosionTime = new NetworkVariable<double>(NoExplosion);
 
-    private ulong oldBombHolderId = ulong.MaxValue;
+    private ulong oldBombHolderId = NoPlayer;
 
     public bool IsRoundRunning => ExplosionTime.Value != NoExplosion;
 
@@ -119,7 +126,7 @@ public class BombManager : NetworkSingleton<BombManager>
 
     private void StartCountdown()
     {
-        int alivePlayers = GameRoundManager.Instance.players.Count(p => p.IsAlive.Value);
+        int alivePlayers = AlivePlayers().Count();
         float duration = bombTimer / MathUtils.SafeDivisor(alivePlayers) + Random.Range(0f, 5f);
 
         ExplosionTime.Value = NetworkManager.ServerTime.Time + duration;
@@ -139,10 +146,18 @@ public class BombManager : NetworkSingleton<BombManager>
 
         StopRound();
 
-        if (assistId != ulong.MaxValue)
-            GameRoundManager.Instance.AddRoundScore(assistId, 2, "Assist");
+        BombExploded?.Invoke(assistId);
+    }
 
-        GameRoundManager.Instance.CheckForRoundEnd();
+    // Every player's bomb state, alive ones only.
+    private static IEnumerable<TransferManager> AlivePlayers()
+    {
+        foreach (PlayerCharacter character in Players.Characters)
+        {
+            TransferManager bomb = character.GetComponent<TransferManager>();
+            if (bomb != null && bomb.IsAlive.Value)
+                yield return bomb;
+        }
     }
 
     private void DespawnActiveBombs()
@@ -166,18 +181,18 @@ public class BombManager : NetworkSingleton<BombManager>
     {
         // No assist points for a player who left.
         if (oldBombHolderId == clientId)
-            oldBombHolderId = ulong.MaxValue;
+            oldBombHolderId = NoPlayer;
 
         if (!IsRoundRunning || bombHolderId.Value != clientId)
             return;
 
         // The holder left with the bomb: give it to a random alive player.
         // The fuse keeps burning (AssignBombHolder only lights it when no bomb is running).
-        List<TransferManager> candidates = GameRoundManager.Instance.players
-            .Where(p => p.IsAlive.Value && !p.IsPlayerInvincible())
+        List<TransferManager> candidates = AlivePlayers()
+            .Where(p => p.OwnerClientId != clientId && !p.IsPlayerInvincible())
             .ToList();
 
-        bombHolderId.Value = ulong.MaxValue;
+        bombHolderId.Value = NoPlayer;
 
         if (candidates.Count > 0)
             AssignBombHolder(candidates[Random.Range(0, candidates.Count)].OwnerClientId);
@@ -187,8 +202,8 @@ public class BombManager : NetworkSingleton<BombManager>
     public void StopRound()
     {
         ExplosionTime.Value = NoExplosion;
-        bombHolderId.Value = ulong.MaxValue;
-        oldBombHolderId = ulong.MaxValue;
+        bombHolderId.Value = NoPlayer;
+        oldBombHolderId = NoPlayer;
 
         DespawnActiveBombs();
     }

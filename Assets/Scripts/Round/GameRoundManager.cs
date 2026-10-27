@@ -7,7 +7,8 @@ using System;
 
 public class GameRoundManager : NetworkSingleton<GameRoundManager>
 {
-    public List<TransferManager> players = new();
+    // Server only: the bomb state of every player in the current round.
+    private readonly List<TransferManager> _players = new();
 
     public NetworkVariable<Dictionary<ulong, int>> PlayerTotalScores { get; private set; }
 
@@ -27,11 +28,39 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     public bool IsGameOver => _isGameOver;
     private const string SURVIVAL_REASON = "Survived an explosion";
 
-    [SerializeField] PhaseManager _PhaseManager;
+    // Server only. Listened to by PhaseManager, which runs the game: this manager never calls it.
+    public event Action<ulong[]> RoundEnded;        // the survivors
+    public event Action NotEnoughPlayers;
+    public event Action ScoreboardClosed;
 
     [SerializeField] private TMP_Text winnerText;
 
     [SerializeField] private Scoreboard _Scoreboard;
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        if (IsServer && BombManager.Instance != null)
+            BombManager.Instance.BombExploded += OnBombExploded;
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (BombManager.Instance != null)
+            BombManager.Instance.BombExploded -= OnBombExploded;
+
+        base.OnNetworkDespawn();
+    }
+
+    // Server only: the holder has exploded. The giver of the last pass scores an assist.
+    private void OnBombExploded(ulong assistId)
+    {
+        if (assistId != BombManager.NoPlayer)
+            AddRoundScore(assistId, 2, "Assist");
+
+        CheckForRoundEnd();
+    }
 
     protected override void OnSingletonAwake()
     {
@@ -48,7 +77,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
     public void ResetPlayers()
     {
-        players.Clear();
+        _players.Clear();
 
         // A new round starts with no lines (players who left included).
         ScoreLines.Clear();
@@ -57,7 +86,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         {
             TransferManager player = character.GetComponent<TransferManager>();
             player.Revive();
-            players.Add(player);
+            _players.Add(player);
             ulong playerId = player.OwnerClientId;
 
             if (!PlayerTotalScores.Value.ContainsKey(playerId))
@@ -67,12 +96,12 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         MarkScoresDirty();
     }
 
-    public void AddRoundScore(ulong playerId, int score, string reason)
+    private void AddRoundScore(ulong playerId, int score, string reason)
     {
         ScoreLines.Add(new ScoreLine(playerId, score, reason));
     }
 
-    public void AddTotalScore(ulong playerId, int score)
+    private void AddTotalScore(ulong playerId, int score)
     {
         if (!PlayerTotalScores.Value.ContainsKey(playerId))
             PlayerTotalScores.Value[playerId] = 0;
@@ -83,7 +112,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
     private void SelectRandomBombHolder()
     {
-        List<TransferManager> alivePlayers = players.Where(p => p.IsAlive.Value).ToList();
+        List<TransferManager> alivePlayers = _players.Where(p => p.IsAlive.Value).ToList();
 
         if (alivePlayers.Count < 2)
             return;
@@ -100,13 +129,13 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         Debug.LogWarning("[GameRoundManager] No alive player could receive the bomb.");
     }
 
-    public void CheckForRoundEnd()
+    private void CheckForRoundEnd()
     {
         int aliveCount = 0;
-        int survivalDivisor = MathUtils.SafeDivisor(players.Count);
+        int survivalDivisor = MathUtils.SafeDivisor(_players.Count);
 
         // Survivors score after every explosion, not only at the end of the round.
-        foreach (var player in players)
+        foreach (var player in _players)
         {
             if (player.IsAlive.Value)
             {
@@ -129,33 +158,32 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         foreach (var kvp in scoreDeltas)
         {
             // Skip players who left during the round.
-            if (players.Exists(p => p.OwnerClientId == kvp.Key))
+            if (_players.Exists(p => p.OwnerClientId == kvp.Key))
                 AddTotalScore(kvp.Key, kvp.Value);
         }
 
         PlayerIds.Clear();
-        foreach (var player in players)
+        foreach (var player in _players)
             PlayerIds.Add(player.OwnerClientId);
 
+        // Reported even without a scoreboard: the game must go on.
         if (_Scoreboard == null)
-        {
-            Debug.LogError("Scoreboard reference is null! Ensure it is assigned.");
-            return;
-        }
+            Debug.LogError("[GameRoundManager] Scoreboard reference is missing.");
 
         // Sent with the RPC instead of being guessed from the score reasons on the clients.
         // PhaseManager shows the scoreboard once the scores have reached the clients.
-        ulong[] survivorIds = players.Where(p => p.IsAlive.Value).Select(p => p.OwnerClientId).ToArray();
-        _PhaseManager.OnRoundEnded(survivorIds);
+        ulong[] survivorIds = _players.Where(p => p.IsAlive.Value).Select(p => p.OwnerClientId).ToArray();
+        RoundEnded?.Invoke(survivorIds);
     }
 
+    // Server only, called by PhaseManager.
     public void HandlePlayerLeft(ulong clientId)
     {
         if (!IsServer || _isGameOver)
             return;
 
         // The leaving character was despawned in PlayerIdentity.OnNetworkDespawn.
-        players.RemoveAll(p => p == null || !p.IsSpawned);
+        _players.RemoveAll(p => p == null || !p.IsSpawned);
         PlayerTotalScores.Value.Remove(clientId);
         MarkScoresDirty();
 
@@ -168,7 +196,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         if (!BombManager.Instance.IsRoundRunning)
             return;
 
-        if (players.Count(p => p.IsAlive.Value) <= 1)
+        if (_players.Count(p => p.IsAlive.Value) <= 1)
         {
             BombManager.Instance.StopRound();
             CheckForRoundEnd();
@@ -203,7 +231,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         TrapPlacementManager.Instance.DespawnAllTraps();
 
         // The message and the return to the lobby belong to the sequencer.
-        _PhaseManager.OnNotEnoughPlayers();
+        NotEnoughPlayers?.Invoke();
     }
 
     // NGO already detects in-place changes by comparing the dictionary with a copy on every
@@ -288,7 +316,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     public void OnScoreboardClosed()
     {
         if (IsServer)
-            _PhaseManager.OnScoreboardClosed();
+            ScoreboardClosed?.Invoke();
     }
 
     // Server only (PhaseManager), after the scoreboard. Returns true when the game is won.
@@ -314,4 +342,4 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     {
         winnerText.gameObject.SetActive(false);
     }
-}
+}

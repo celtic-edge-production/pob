@@ -152,6 +152,11 @@ public abstract class ATrap : NetworkBehaviour
 
     }
 
+    // Server only, right after the trap is placed. Nothing by default; the bomb trap explodes.
+    public virtual void OnPlaced()
+    {
+    }
+
     // Chest selection: the cursor's click (TilemapHover) asks whether it is on this trap.
     public bool IsUnderPoint(Vector2 worldPoint)
     {
@@ -213,4 +218,4 @@ public abstract class ATrap : NetworkBehaviour
         if (_actionSound != null)
             AudioSource.PlayClipAtPoint(_actionSound, position);
     }
-}
+}

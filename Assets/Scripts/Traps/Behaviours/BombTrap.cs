@@ -16,16 +16,16 @@ public class BombTrap : ATrap
         isBombTrap = true;
     }
 
-    // Server only (TrapPlacementManager.PlaceTrap). Explodes as soon as it is placed, even in
-    // phase 1: the cell is free right away and another player can place a trap there.
-    public void ExplodeBomb(Vector3Int targetCell)
+    // Server only (TrapPlacementManager.PlaceTrap, which has already removed the trap below).
+    // Explodes as soon as it is placed, even in phase 1: the cell is free right away and another
+    // player can place a trap there.
+    public override void OnPlaced()
     {
         if (!IsServer || _hasExploded)
             return;
 
         _hasExploded = true;
 
-        TrapPlacementManager.Instance.RemoveTrapAt(targetCell);
         PlayExplosionClientRpc();
         StartCoroutine(DespawnAfterExplosion());
     }
@@ -49,7 +49,7 @@ public class BombTrap : ATrap
     }
 
     // Animation events still present in the explosion clip. The gameplay no longer waits for them
-    // (see ExplodeBomb and DespawnAfterExplosion); they are kept so the clip finds a receiver.
+    // (see OnPlaced and DespawnAfterExplosion); they are kept so the clip finds a receiver.
     public void OnExplode()
     {
     }

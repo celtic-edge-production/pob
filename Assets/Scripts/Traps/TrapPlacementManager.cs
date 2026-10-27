@@ -15,7 +15,8 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 {
     [Tooltip("Colours the preview (green) and the occupied cells (red) on the zone tilemap.")]
     [SerializeField] private bool debug = false;
-    [SerializeField] PhaseManager _PhaseManager;
+    // Server only: every trap of this phase 1 has been placed (PhaseManager starts phase 2).
+    public event Action PlacementDone;
     [SerializeField] private float _OffsetSpawn = 100.0f;
 
     [Header("Tilemaps")]
@@ -248,7 +249,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         }
 
         _isPlacementPhaseRunning = false;
-        _PhaseManager.OnPlacementDone();
+        PlacementDone?.Invoke();
     }
 
     #endregion
@@ -272,10 +273,11 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
         if (trap.isBombTrap)
         {
-            // Never on the grid: it removes the trap below and disappears (BombTrap.ExplodeBomb).
+            // Never on the grid: it removes the trap below and disappears (BombTrap.OnPlaced).
             ReturnToServer(trap, origin, orientation);
             trap.TrySetStage(TrapStage.Placed);
-            ((BombTrap)trap).ExplodeBomb(origin);
+            RemoveTrapAt(origin);
+            trap.OnPlaced();
             return true;
         }
 

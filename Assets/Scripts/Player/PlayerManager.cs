@@ -7,6 +7,9 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
 {
     private bool _isDisconnecting = false;
 
+    // Server only: another player has left the session (his objects are already despawned).
+    public static event System.Action<ulong> PlayerLeft;
+
     // Shown by the main menu after a session ended without the player asking (host gone).
     public static string PendingMenuMessage { get; set; }
 
@@ -51,17 +54,8 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
         }
 
         // NGO has already despawned the leaving player's objects (see PlayerIdentity.OnNetworkDespawn).
-        // Only the game rules are left to update. Both managers only exist in a game scene.
-        if (GameRoundManager.Instance != null)
-        {
-            GameRoundManager.Instance.HandlePlayerLeft(clientId);
-
-            if (GameRoundManager.Instance.IsGameOver)
-                return;
-        }
-
-        if (TrapPlacementManager.Instance != null)
-            TrapPlacementManager.Instance.HandlePlayerLeft(clientId);
+        // The game rules are PhaseManager's, which listens in a game scene.
+        PlayerLeft?.Invoke(clientId);
     }
 
     public void Disconnect()

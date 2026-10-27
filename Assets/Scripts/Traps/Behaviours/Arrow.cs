@@ -19,7 +19,16 @@ public class Arrow : NetworkBehaviour
             return;
 
         _hasHit = true;
-        PlaySoundClientRpc(collision.gameObject.CompareTag("Player"), transform.position);
+
+        // The server decides the hit: the arrow is despawned right away, before its copy on the
+        // player's own machine could reach his character there.
+        PlayerCombat player = collision.GetComponentInParent<PlayerCombat>();
+        if (player != null)
+            player.KnockOutFrom(transform.position);
+
+        bool hitPlayer = player != null || collision.CompareTag("Player");
+
+        PlaySoundClientRpc(hitPlayer, transform.position);
         NetworkObject.Despawn(true);
     }
 

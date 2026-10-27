@@ -120,17 +120,14 @@ public class PlayerCombat : NetworkBehaviour
         if ((collision.includeLayers.value & LayerMask.GetMask("TrapStun")) == 0)
             return;
 
-        // Pushed away from the trap. The collider's centre is used rather than the transform,
-        // whose pivot is not always in the middle of the trap.
-        Vector2 away = ((Vector2)transform.position - (Vector2)collision.bounds.center).normalized;
+        // Arrows are decided by the server (KnockOutFrom): it despawns them on contact, often
+        // before they reach this machine, so a client never saw the hit.
+        if (collision.GetComponentInParent<Arrow>() != null)
+            return;
 
-        // Right on top of the centre: no side to pick, so push back the way the player came from.
-        if (Mathf.Approximately(away.x, 0f))
-            away.x = _character.isFacingRight ? -1f : 1f;
-
-        KnockOut(new Vector2(
-            away.x * _punchForce * Data.knockbackForceX,
-            _punchForce * Data.knockbackForceY));
+        // The collider's centre is used rather than the transform, whose pivot is not always in
+        // the middle of the trap.
+        KnockOut(KnockbackAwayFrom(collision.bounds.center));
 
         // The server cannot see this contact reliably (this character is driven by its owner),
         // so the owner reports it and the trap plays its hit sound for everyone.
@@ -148,6 +145,27 @@ public class PlayerCombat : NetworkBehaviour
         ATrap trap = trapObject.GetComponentInChildren<ATrap>();
         if (trap != null)
             trap.OnPlayerHit();
+    }
+
+    // Server only: a hit the server decides (an arrow), sent to the owner, where the physics runs.
+    public void KnockOutFrom(Vector2 origin)
+    {
+        if (IsServer && _character.CanAct())
+            KnockOutRpc(KnockbackAwayFrom(origin));
+    }
+
+    // Pushed away from the origin of the hit.
+    private Vector2 KnockbackAwayFrom(Vector2 origin)
+    {
+        Vector2 away = ((Vector2)transform.position - origin).normalized;
+
+        // Right on top of it: no side to pick, so push back the way the player came from.
+        if (Mathf.Approximately(away.x, 0f))
+            away.x = _character.isFacingRight ? -1f : 1f;
+
+        return new Vector2(
+            away.x * _punchForce * Data.knockbackForceX,
+            _punchForce * Data.knockbackForceY);
     }
 
     #endregion
@@ -217,4 +235,4 @@ public class PlayerCombat : NetworkBehaviour
         Gizmos.DrawWireSphere(transform.position, _punchRadius);
     }
 
-}
+}

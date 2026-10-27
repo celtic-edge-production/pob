@@ -1,4 +1,5 @@
 using TMPro;
+using Unity.Netcode;
 using UnityEngine;
 
 public class LobbyMatchmaking : MonoBehaviour
@@ -29,6 +30,35 @@ public class LobbyMatchmaking : MonoBehaviour
             _MessageText.text = PlayerManager.PendingMenuMessage;
             PlayerManager.PendingMenuMessage = null;
         }
+
+        // Before any host or join: the joining rules, and the reason a refused player is told.
+        NetworkManager networkManager = NetworkManager.Singleton;
+        ConnectionGate.InstallOn(networkManager);
+        if (networkManager != null)
+            networkManager.OnClientDisconnectCallback += OnDisconnectedFromMenu;
+    }
+
+    private void OnDestroy()
+    {
+        if (NetworkManager.Singleton != null)
+            NetworkManager.Singleton.OnClientDisconnectCallback -= OnDisconnectedFromMenu;
+    }
+
+    // Still in the menu: the join failed or was refused by the host (lobby full, game running).
+    private void OnDisconnectedFromMenu(ulong clientId)
+    {
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (networkManager == null || networkManager.IsServer || clientId != networkManager.LocalClientId)
+            return;
+
+        string reason = networkManager.DisconnectReason;
+        if (_MessageText != null)
+            _MessageText.text = string.IsNullOrEmpty(reason) ? "Impossible de rejoindre le lobby." : reason;
+
+        // Leave the Steam / EOS lobby joined on the way. NGO shuts itself down right after this
+        // callback: shutting it down here would try to talk to a host that already said no.
+        SteamLobbySession.Leave();
+        EOSLobbySession.Leave();
     }
 
     public void InitNetworkLobbyAndRelay()
@@ -70,4 +100,4 @@ public class LobbyMatchmaking : MonoBehaviour
         if (!string.IsNullOrEmpty(_currentHostCode))
             GUIUtility.systemCopyBuffer = _currentHostCode;
     }
-}
+}

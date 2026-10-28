@@ -55,9 +55,9 @@ public class Scoreboard : MonoBehaviour
 
     public void SetUpPlayerStateImages(ulong[] survivorIds)
     {
-        for (int i = 0; i < _GameRoundManager.PlayerIds.Count; i++)
+        for (int i = 0; i < _GameRoundManager.Scores.PlayerIds.Count; i++)
         {
-            bool survived = System.Array.IndexOf(survivorIds, _GameRoundManager.PlayerIds[i]) >= 0;
+            bool survived = System.Array.IndexOf(survivorIds, _GameRoundManager.Scores.PlayerIds[i]) >= 0;
             _StatusImageList[i].sprite = survived ? _HeartImage : _SkullImage;
         }
     }
@@ -79,7 +79,7 @@ public class Scoreboard : MonoBehaviour
             PlayerImage[i].GetComponent<Image>().gameObject.SetActive(false);
         }
 
-        _GameRoundManager.OnScoreboardClosed();
+        _GameRoundManager.Display.OnScoreboardClosed();
         StartCoroutine(CleanScoreboard());
     }
 
@@ -98,16 +98,16 @@ public class Scoreboard : MonoBehaviour
             _RoundTextScoreList[i].GetComponent<TMP_Text>().text = "";
         }
 
-        for (int i = 0; i < _GameRoundManager.PlayerIds.Count; i++)
+        for (int i = 0; i < _GameRoundManager.Scores.PlayerIds.Count; i++)
         {
-            ulong playerId = _GameRoundManager.PlayerIds[i];
+            ulong playerId = _GameRoundManager.Scores.PlayerIds[i];
 
             _TotalTextScoreList[i].gameObject.SetActive(true);
             _StatusImageList[i].gameObject.SetActive(true);
             PlayerImage[i].GetComponent<Image>().gameObject.SetActive(true);
 
             // Read-only: the scores belong to the server.
-            int total = _GameRoundManager.PlayerTotalScores.Value.TryGetValue(playerId, out int score) ? score : 0;
+            int total = _GameRoundManager.Scores.TotalOf(playerId);
             _TotalTextScoreList[i].text = $"{playerId} score : {total}";
         }
     }
@@ -136,12 +136,12 @@ public class Scoreboard : MonoBehaviour
     private void StartRoundScoreAnimation(int start)
     {
         // Find a player with at least one roundScore
-        for (int i = start; i < _GameRoundManager.PlayerIds.Count; i++)
+        for (int i = start; i < _GameRoundManager.Scores.PlayerIds.Count; i++)
         {
-            ulong playerId = _GameRoundManager.PlayerIds[i];
+            ulong playerId = _GameRoundManager.Scores.PlayerIds[i];
 
             // Taken once per player: the lines played one after the other cannot change under it.
-            List<ScoreLine> lines = _GameRoundManager.GetScoreLines(playerId);
+            List<ScoreLine> lines = _GameRoundManager.Scores.GetLinesOf(playerId);
 
             if (lines.Count > 0)
             {
@@ -172,7 +172,7 @@ public class Scoreboard : MonoBehaviour
         else
         {
             _CurrentPlayerRoundScoreIndex = 0;
-            if (_PlayerIdInList + 1 < _GameRoundManager.PlayerIds.Count)
+            if (_PlayerIdInList + 1 < _GameRoundManager.Scores.PlayerIds.Count)
             {
                 StartRoundScoreAnimation(_PlayerIdInList + 1);
             }
@@ -188,4 +188,4 @@ public class Scoreboard : MonoBehaviour
     {
         _Animator.SetBool("IsOpening", false);
     }
-}
+}

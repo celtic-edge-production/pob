@@ -17,8 +17,8 @@ public class EndPhase : APhase
         TrapPlacementManager.Instance.DespawnAllTraps();
 
         // Built on the server: character names are the same on every peer.
-        string message = BuildWinnerMessage(GameRoundManager.Instance.GetWinnerIds());
-        GameRoundManager.Instance.ShowGameMessageClientRpc(message);
+        string message = BuildWinnerMessage(GameRoundManager.Instance.Scores.GetWinnerIds());
+        GameRoundManager.Instance.Display.ShowMessageClientRpc(message);
     }
 
     private static string BuildWinnerMessage(ulong[] winnerIds)
@@ -39,4 +39,4 @@ public class EndPhase : APhase
 
         return character != null ? character.name : $"Player {clientId}";
     }
-}
+}

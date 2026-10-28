@@ -85,7 +85,7 @@ public class PhaseManager : NetworkBehaviour
 
         GameRoundManager.Instance.RoundEnded += OnRoundEnded;
         GameRoundManager.Instance.NotEnoughPlayers += OnNotEnoughPlayers;
-        GameRoundManager.Instance.ScoreboardClosed += OnScoreboardClosed;
+        GameRoundManager.Instance.Display.ScoreboardClosed += OnScoreboardClosed;
         TrapPlacementManager.Instance.PlacementDone += OnPlacementDone;
         PlayerManager.PlayerLeft += OnPlayerLeft;
     }
@@ -96,7 +96,7 @@ public class PhaseManager : NetworkBehaviour
         {
             GameRoundManager.Instance.RoundEnded -= OnRoundEnded;
             GameRoundManager.Instance.NotEnoughPlayers -= OnNotEnoughPlayers;
-            GameRoundManager.Instance.ScoreboardClosed -= OnScoreboardClosed;
+            GameRoundManager.Instance.Display.ScoreboardClosed -= OnScoreboardClosed;
         }
 
         if (TrapPlacementManager.Instance != null)
@@ -146,7 +146,7 @@ public class PhaseManager : NetworkBehaviour
         StartCoroutine(EndForLackOfPlayers());
     }
 
-    // GameRoundManager: the host's scoreboard has finished its closing animation.
+    // RoundDisplay: the host's scoreboard has finished its closing animation.
     private void OnScoreboardClosed()
     {
         _scoreboardClosed = true;
@@ -196,7 +196,7 @@ public class PhaseManager : NetworkBehaviour
             if (IsGameOver)
                 yield break;
 
-            rounds.ShowScoreboardClientRpc(_survivorIds);
+            rounds.Display.ShowScoreboardClientRpc(_survivorIds);
             yield return WaitOrTimeout(() => _scoreboardClosed || IsGameOver, _scoreboardTimeout, "scoreboard closing");
             yield return new WaitForSeconds(_afterScoreboardDelay);
 
@@ -222,7 +222,7 @@ public class PhaseManager : NetworkBehaviour
     private IEnumerator EndForLackOfPlayers()
     {
         _currentPhase.Value = GamePhase.EndPhase;
-        GameRoundManager.Instance.ShowGameMessageClientRpc("Not enough players left, back to the lobby...");
+        GameRoundManager.Instance.Display.ShowMessageClientRpc("Not enough players left, back to the lobby...");
 
         yield return new WaitForSeconds(_notEnoughPlayersDelay);
 
@@ -280,4 +280,4 @@ public class PhaseManager : NetworkBehaviour
         if (!isDone())
             Debug.LogWarning($"[PhaseManager] No end event for the {step} after {timeout}s, going on.");
     }
-}
+}

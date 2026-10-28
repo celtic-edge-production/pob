@@ -11,6 +11,8 @@ GameObject:
   - component: {fileID: 5398051304990962006}
   - component: {fileID: 856001808197062860}
   - component: {fileID: 9195080596057946353}
+  - component: {fileID: 7313051931408465101}
+  - component: {fileID: 2864109384415372205}
   m_Layer: 0
   m_Name: GameRoundManager
   m_TagString: Untagged
@@ -71,3 +73,33 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &7313051931408465101
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4516152510616055716}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68127cca19304b469c6c03585141dd9a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  _maxRounds: 25
+  _maxScore: 90
+--- !u!114 &2864109384415372205
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4516152510616055716}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 82e081af6ce14ec3bc5b5ece2c568722, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  _messageText: {fileID: 0}
+  _scoreboard: {fileID: 0}

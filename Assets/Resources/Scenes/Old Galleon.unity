@@ -18657,12 +18657,12 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 9195080596057946353, guid: 0157cd8c730205c429d1d485c6f5447b, type: 3}
-      propertyPath: winnerText
+    - target: {fileID: 2864109384415372205, guid: 0157cd8c730205c429d1d485c6f5447b, type: 3}
+      propertyPath: _messageText
       value: 
       objectReference: {fileID: 67912445}
-    - target: {fileID: 9195080596057946353, guid: 0157cd8c730205c429d1d485c6f5447b, type: 3}
-      propertyPath: _Scoreboard
+    - target: {fileID: 2864109384415372205, guid: 0157cd8c730205c429d1d485c6f5447b, type: 3}
+      propertyPath: _scoreboard
       value: 
       objectReference: {fileID: 1724060922}
     - target: {fileID: 9195080596057946353, guid: 0157cd8c730205c429d1d485c6f5447b, type: 3}

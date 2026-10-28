@@ -3,6 +3,10 @@ using UnityEngine;
 [CreateAssetMenu(menuName = "Audio/Sound Manager", fileName = "Sound Manager")]
 public class SoundManagerSO : ScriptableObject {
 
+    // Loaded by name because the static Play* methods are called from anywhere: the asset is the
+    // only game asset left in Resources/ (Assets/Resources/Sound Manager.asset).
+    private const string ResourcePath = "Sound Manager";
+
     private static SoundManagerSO _Instance;
 
     public static SoundManagerSO Instance
@@ -10,7 +14,7 @@ public class SoundManagerSO : ScriptableObject {
         get
         {
             if (_Instance == null)
-                _Instance = Resources.Load<SoundManagerSO>("ScriptableObject/Sound/Sound Manager");
+                _Instance = Resources.Load<SoundManagerSO>(ResourcePath);
             return _Instance;
         }
     }

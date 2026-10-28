@@ -1,0 +1,84 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &7912953175915040880
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 980111029419814022}
+  - component: {fileID: -460566340810036328}
+  - component: {fileID: 4259100432765415108}
+  m_Layer: 0
+  m_Name: TrapPlacementManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &980111029419814022
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7912953175915040880}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &-460566340810036328
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7912953175915040880}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  GlobalObjectIdHash: 3831928658
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 1
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 0
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
+--- !u!114 &4259100432765415108
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7912953175915040880}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 16a4e69364a59c3498efa0130c8482f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTopMostFoldoutHeaderGroup: 1
+  _sprite: {fileID: 21300000, guid: 488eff0aa08a2a04e9d5f1d4db0944b0, type: 3}
+  debug: 1
+  _trapPool:
+  - {fileID: 5512837367891128706, guid: 01a534907994f7a4187de0dbba002bbd, type: 3}
+  - {fileID: 9140929037364825201, guid: a752ce935c276f44d87f1336d1bbca0b, type: 3}
+  - {fileID: 2736097455242198810, guid: 2152417615dd27f44be79929a2d3a2dc, type: 3}
+  - {fileID: 7930634112466057595, guid: 5a92b6a49d9f4a4438c73176d6791099, type: 3}
+  - {fileID: -3590387201939091684, guid: 1f6f34f27144b6a428756320608045c9, type: 3}
+  - {fileID: 1812405669638570902, guid: 69767c67795fa7842a5370eded0b800b, type: 3}
+  - {fileID: 3794635446407292999, guid: 6879ae110ede2c0488e52f96db313f4e, type: 3}
+  - {fileID: 5893205497821538778, guid: fc7c18a494cd33c429fffc77c225ec5f, type: 3}

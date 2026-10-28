@@ -22,7 +22,10 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     [Header("Tilemaps")]
     [Tooltip("The zone where traps may be placed.")]
     [SerializeField] private Tilemap _paternTileMap;
-    private ATrap[] _gameObjectArray;
+
+    [Header("Traps")]
+    [Tooltip("The traps the chest can offer, drawn at random.")]
+    [SerializeField] private ATrap[] _trapPool;
 
     // Server only: which placed trap covers each cell.
     private TrapGrid _grid;
@@ -52,7 +55,8 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         // Traps may go on every painted cell of the zone tilemap: walls must be left unpainted.
         _grid = new TrapGrid(cell => _paternTileMap.HasTile(cell));
 
-        _gameObjectArray = Resources.LoadAll<ATrap>("Prefabs/Traps/Traps");
+        if (_trapPool == null || _trapPool.Length == 0)
+            Debug.LogError("[TrapPlacementManager] The trap pool is empty: assign the trap prefabs in the Inspector.");
     }
 
     // Valid on every peer: clients use it to send the preview only when the hovered cell changes.
@@ -170,7 +174,7 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
         float spawnWidth = halfWidth - _OffsetSpawn < 0 ? halfWidth : halfWidth - _OffsetSpawn;
         float spawnHeight = halfHeight - _OffsetSpawn < 0 ? halfHeight : halfHeight - _OffsetSpawn;
 
-        ATrap trap = Instantiate(_gameObjectArray[UnityEngine.Random.Range(0, _gameObjectArray.Length)]);
+        ATrap trap = Instantiate(_trapPool[UnityEngine.Random.Range(0, _trapPool.Length)]);
         trap.transform.position = new Vector3(
             UnityEngine.Random.Range(-spawnWidth, spawnWidth) / 100.0f,
             0,
@@ -472,4 +476,4 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     }
 
     #endregion
-}
+}

@@ -56,8 +56,7 @@ public class LobbyMatchmaking : MonoBehaviour
 
         // Leave the Steam / EOS lobby joined on the way. NGO shuts itself down right after this
         // callback: shutting it down here would try to talk to a host that already said no.
-        SteamLobbySession.Leave();
-        EOSLobbySession.Leave();
+        MatchmakingSession.LeaveAll();
     }
 
     public void InitNetworkLobbyAndRelay()
@@ -99,4 +98,4 @@ public class LobbyMatchmaking : MonoBehaviour
         if (!string.IsNullOrEmpty(_currentHostCode))
             GUIUtility.systemCopyBuffer = _currentHostCode;
     }
-}
+}

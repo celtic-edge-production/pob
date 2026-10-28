@@ -81,8 +81,7 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
     private IEnumerator DisconnectRoutine(bool connectionLost)
     {
         // Close the matchmaking lobby too, or its code stays joinable while nobody hosts it.
-        SteamLobbySession.Leave();
-        EOSLobbySession.Leave();
+        MatchmakingSession.LeaveAll();
 
         // Connection lost: NGO shuts down by itself right after the disconnect callback, discarding
         // the outgoing messages. Shutting down here first would try to send them to a dead host.
@@ -129,4 +128,4 @@ public class PlayerManager : NetworkSingleton<PlayerManager>
             player.SendDataToNewClient(newClientId);
         }
     }
-}
+}

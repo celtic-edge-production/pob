@@ -1,0 +1,24 @@
+{
+    "name": "PoB.Backends",
+    "rootNamespace": "",
+    "references": [
+        "Unity.Netcode.Runtime",
+        "Unity.Networking.Transport",
+        "SteamNetworkingSockets Transport for Netcode for GameObjects",
+        "com.rlabrecque.steamworks.net",
+        "com.Epic.OnlineServices",
+        "com.playeveryware.eos",
+        "com.playeveryware.eos.core",
+        "com.playeveryware.eos.samples",
+        "com.playeveryware.eos.samples.networking"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

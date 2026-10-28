@@ -95,7 +95,7 @@ public class BombManager : NetworkSingleton<BombManager>
         bool isAlive = target != null && target.IsAlive.Value;
         bool isInvincible = target != null && target.IsPlayerInvincible();
 
-        return CanTransfer(bombHolderId.Value, newHolderId, isAlive, isInvincible);
+        return BombRules.CanTransfer(bombHolderId.Value, newHolderId, isAlive, isInvincible);
     }
 
     // Returns false if the holder is stunned with the bomb in hand: a stunned player cannot
@@ -169,14 +169,6 @@ public class BombManager : NetworkSingleton<BombManager>
         }
     }
 
-    public static bool CanTransfer(ulong currentHolderId, ulong newHolderId, bool newHolderIsAlive, bool newHolderIsInvincible)
-    {
-        if (!newHolderIsAlive || newHolderIsInvincible)
-            return false;
-
-        return currentHolderId != newHolderId;
-    }
-
     public void HandlePlayerLeft(ulong clientId)
     {
         // No assist points for a player who left.
@@ -212,4 +204,4 @@ public class BombManager : NetworkSingleton<BombManager>
     {
         return bombHolderId.Value == clientId;
     }
-}
+}

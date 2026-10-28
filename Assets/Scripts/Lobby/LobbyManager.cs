@@ -254,15 +254,15 @@ public class LobbyManager : NetworkSingleton<LobbyManager>
 
     private void DisplayRoomCode()
     {
-        if (!string.IsNullOrEmpty(SteamLobbySession.RoomCode))
-            _MessageText.text = $"Lobby Code: {SteamLobbySession.RoomCode}";
-        else if (!string.IsNullOrEmpty(EOSLobbySession.RoomCode))
-            _MessageText.text = $"Lobby Code: {EOSLobbySession.RoomCode}";
-        else if (NetworkBackendSelector.Current == BackendType.Local)
+        string roomCode = MatchmakingSession.RoomCode;
+
+        if (!string.IsNullOrEmpty(roomCode))
+            _MessageText.text = $"Lobby Code: {roomCode}";
+        else if (MatchmakingSession.IsLocal)
             _MessageText.text = "Lobby local (127.0.0.1)";
         else
             Debug.LogWarning("[LobbyManager] No lobby code to display.");
     }
 
     #endregion
-}
+}

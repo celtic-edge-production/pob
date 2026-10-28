@@ -1,0 +1,23 @@
+{
+    "name": "PoB.Game",
+    "rootNamespace": "",
+    "references": [
+        "PoB.Core",
+        "PoB.Backends",
+        "Unity.Netcode.Runtime",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem",
+        "Unity.2D.Tilemap.Extras",
+        "Unity.Mathematics",
+        "Unity.Collections"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

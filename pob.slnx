@@ -1,6 +1,8 @@
 ﻿<Solution>
   <Project Path="com.playeveryware.eos.samples.csproj" />
-  <Project Path="NewAssembly.csproj" />
+  <Project Path="PoB.Core.csproj" />
+  <Project Path="PoB.Game.csproj" />
+  <Project Path="PoB.Backends.csproj" />
   <Project Path="com.playeveryware.eos.samples.appleauth.editor.csproj" />
   <Project Path="EditMode.csproj" />
   <Project Path="Unity.InputSystem.RebindingUI.csproj" />

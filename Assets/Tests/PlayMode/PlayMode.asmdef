@@ -5,7 +5,8 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "Unity.Netcode.Runtime",
-        "NewAssembly"
+        "PoB.Core",
+        "PoB.Game"
     ],
     "includePlatforms": [
         "Android",
@@ -45,4 +46,4 @@
     ],
     "versionDefines": [],
     "noEngineReferences": false
-}
+}

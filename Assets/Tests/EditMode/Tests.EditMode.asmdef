@@ -4,7 +4,8 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "NewAssembly",
+        "PoB.Core",
+        "PoB.Game",
         "Unity.Netcode.Runtime",
         "Unity.Collections"
     ],
@@ -23,4 +24,4 @@
     ],
     "versionDefines": [],
     "noEngineReferences": false
-}
+}

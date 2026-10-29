@@ -19545,7 +19545,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: PoB.Game::TrapLivesMarkers
   _heart: {fileID: 21300000, guid: a2f945ddbdba1cc4e852a14414ba2c14, type: 3}
-  _heartScale: 0.5
+  _heartScale: 1.5
   _numberColor: {r: 1, g: 1, b: 1, a: 1}
   _numberSize: 3
   _numberOffset: 0.3

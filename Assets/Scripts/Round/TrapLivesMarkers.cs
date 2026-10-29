@@ -18,7 +18,7 @@ public class TrapLivesMarkers : MonoBehaviour
     [Header("Placement")]
     [Tooltip("Height above the character's position.")]
     [SerializeField] private float _heightAboveCharacter = 0.9f;
-    [Tooltip("Drawn over the level and the characters.")]
+    [Tooltip("Order inside the character's sorting layer: drawn over the character.")]
     [SerializeField] private int _sortingOrder = 100;
 
     private class Marker
@@ -55,7 +55,7 @@ public class TrapLivesMarkers : MonoBehaviour
                 if (!show)
                     continue;
 
-                marker = CreateMarker();
+                marker = CreateMarker(character);
                 _markers[playerId] = marker;
             }
 
@@ -76,9 +76,12 @@ public class TrapLivesMarkers : MonoBehaviour
         }
     }
 
-    // A heart sprite with the number to its right, built in code: no prefab needed.
-    private Marker CreateMarker()
+    // A heart sprite with the number to its right, built in code: no prefab needed. Drawn in the
+    // character's sorting layer: on the Default layer, it was hidden behind the level.
+    private Marker CreateMarker(PlayerCharacter character)
     {
+        int sortingLayer = character.TryGetComponent(out SpriteRenderer characterRenderer) ? characterRenderer.sortingLayerID : 0;
+
         GameObject root = new GameObject("TrapLivesMarker");
 
         GameObject heart = new GameObject("Heart");
@@ -86,6 +89,7 @@ public class TrapLivesMarkers : MonoBehaviour
         heart.transform.localScale = Vector3.one * _heartScale;
         SpriteRenderer heartRenderer = heart.AddComponent<SpriteRenderer>();
         heartRenderer.sprite = _heart;
+        heartRenderer.sortingLayerID = sortingLayer;
         heartRenderer.sortingOrder = _sortingOrder;
 
         GameObject numberObject = new GameObject("Lives");
@@ -99,6 +103,7 @@ public class TrapLivesMarkers : MonoBehaviour
         number.textWrappingMode = TextWrappingModes.NoWrap;
         number.rectTransform.sizeDelta = new Vector2(1f, 1f);
         number.rectTransform.pivot = new Vector2(0f, 0.5f);
+        number.sortingLayerID = sortingLayer;
         number.sortingOrder = _sortingOrder;
 
         if (_heart == null)

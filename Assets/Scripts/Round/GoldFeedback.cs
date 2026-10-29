@@ -24,7 +24,7 @@ public class GoldFeedback : MonoBehaviour
     [Header("Placement")]
     [Tooltip("Height above the character's position (over the trap lives marker).")]
     [SerializeField] private float _heightAboveCharacter = 1.35f;
-    [Tooltip("Drawn over the level and the characters.")]
+    [Tooltip("Order inside the character's sorting layer: drawn over the character.")]
     [SerializeField] private int _sortingOrder = 100;
 
     private ScoreKeeper _scores;
@@ -53,15 +53,17 @@ public class GoldFeedback : MonoBehaviour
             return;
 
         string text = delta > 0 ? $"+{delta}" : delta.ToString();
-        TextMeshPro popup = CreateText("GoldPopup", text, delta > 0 ? _gainColor : _lossColor, _popupSize);
+        TextMeshPro popup = CreateText("GoldPopup", text, delta > 0 ? _gainColor : _lossColor, _popupSize, character);
         popup.transform.position = AboveHead(character);
 
-        StartCoroutine(RiseAndFade(popup));
+        StartCoroutine(RiseAndFade(popup, character));
     }
 
-    private IEnumerator RiseAndFade(TextMeshPro popup)
+    // Follows the character: a loss on the last trap life comes with a respawn, and the popup left
+    // where the hit happened was out of sight of the player's own camera, which follows him.
+    private IEnumerator RiseAndFade(TextMeshPro popup, PlayerCharacter character)
     {
-        Vector3 start = popup.transform.position;
+        Vector3 anchor = popup.transform.position;
         Color color = popup.color;
 
         for (float time = 0f; time < _popupDuration; time += Time.deltaTime)
@@ -69,8 +71,11 @@ public class GoldFeedback : MonoBehaviour
             if (popup == null)
                 yield break;
 
+            if (character != null)
+                anchor = AboveHead(character);
+
             float progress = time / _popupDuration;
-            popup.transform.position = start + Vector3.up * (_popupRise * progress);
+            popup.transform.position = anchor + Vector3.up * (_popupRise * progress);
             popup.color = new Color(color.r, color.g, color.b, 1f - progress * progress);
             yield return null;
         }
@@ -95,7 +100,7 @@ public class GoldFeedback : MonoBehaviour
                 if (!show)
                     continue;
 
-                mark = CreateText("DangerMark", _dangerMark, _dangerColor, _dangerSize);
+                mark = CreateText("DangerMark", _dangerMark, _dangerColor, _dangerSize, character);
                 _dangerMarks[playerId] = mark;
             }
 
@@ -117,8 +122,9 @@ public class GoldFeedback : MonoBehaviour
         return Players.TryGet(playerId, out PlayerIdentity player) ? player.Character : null;
     }
 
-    // World-space text, built in code so no prefab is needed (TMP's default font).
-    private TextMeshPro CreateText(string objectName, string text, Color color, float size)
+    // World-space text, built in code so no prefab is needed (TMP's default font). Drawn in the
+    // character's sorting layer: on the Default layer, it was hidden behind the level.
+    private TextMeshPro CreateText(string objectName, string text, Color color, float size, PlayerCharacter character)
     {
         GameObject textObject = new GameObject(objectName);
         TextMeshPro tmp = textObject.AddComponent<TextMeshPro>();
@@ -130,6 +136,7 @@ public class GoldFeedback : MonoBehaviour
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.textWrappingMode = TextWrappingModes.NoWrap;
         tmp.rectTransform.sizeDelta = new Vector2(3f, 1f);
+        tmp.sortingLayerID = character.TryGetComponent(out SpriteRenderer characterRenderer) ? characterRenderer.sortingLayerID : 0;
         tmp.sortingOrder = _sortingOrder;
 
         return tmp;

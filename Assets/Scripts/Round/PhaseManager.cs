@@ -246,8 +246,11 @@ public class PhaseManager : NetworkBehaviour
             SceneLoader.LoadForEveryone(SceneNames.Lobby);
     }
 
+    // The gold standings stay on screen during the countdown: the moment to choose who to aim for.
     private IEnumerator Countdown()
     {
+        GameRoundManager.Instance.Display.ShowStandings();
+
         for (int secondsLeft = _countdownSeconds; secondsLeft > 0; secondsLeft--)
         {
             if (IsGameOver)
@@ -260,6 +263,7 @@ public class PhaseManager : NetworkBehaviour
         if (IsGameOver)
             yield break;
 
+        GameRoundManager.Instance.Display.HideMessageClientRpc();
         phase2.ShowCountdownClientRpc("Go!");
         yield return new WaitForSeconds(_goDisplayTime);
 

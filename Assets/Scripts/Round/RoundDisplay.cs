@@ -1,29 +1,83 @@
 using System;
+using System.Linq;
 using TMPro;
 using Unity.Netcode;
 using UnityEngine;
 
-// What every peer sees of a round: the message in the middle of the screen, the scoreboard and
-// the switch back to the shared camera. Server-called RPCs only; no game rules here.
-// Lives next to GameRoundManager and ScoreKeeper.
+// What every peer sees of a round: the message in the middle of the screen, the gold standings,
+// the "+10 / -10" over the players, the scoreboard and the switch back to the shared camera.
+// Server-called RPCs only; no game rules here. Lives next to GameRoundManager and ScoreKeeper.
 public class RoundDisplay : NetworkBehaviour
 {
     [SerializeField] private TMP_Text _messageText;
     [SerializeField] private Scoreboard _scoreboard;
+    [Tooltip("Colour of the players in danger in the standings.")]
+    [SerializeField] private Color _dangerColor = new Color(0.9f, 0.25f, 0.25f, 1f);
 
     // Server only: the host's scoreboard has finished its closing animation (PhaseManager waits for it).
     public event Action ScoreboardClosed;
 
     private ScoreKeeper _scores;
+    private GoldFeedback _goldFeedback;
     private Camera _mainCamera;
 
     private void Awake()
     {
         _scores = GetComponent<ScoreKeeper>();
+        // Added at runtime: the scene needs no extra setup (its settings keep their defaults).
+        if (!TryGetComponent(out _goldFeedback))
+            _goldFeedback = gameObject.AddComponent<GoldFeedback>();
         _mainCamera = Camera.main;
 
         if (_messageText == null || _scoreboard == null)
             Debug.LogError("[RoundDisplay] Message Text and Scoreboard must be assigned in the Inspector.", this);
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        if (IsServer)
+            _scores.GoldChanged += OnGoldChanged;
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (_scores != null)
+            _scores.GoldChanged -= OnGoldChanged;
+
+        base.OnNetworkDespawn();
+    }
+
+    // Server only.
+    private void OnGoldChanged(ulong playerId, int delta)
+    {
+        ShowGoldChangeClientRpc(playerId, delta);
+    }
+
+    [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
+    private void ShowGoldChangeClientRpc(ulong playerId, int delta)
+    {
+        _goldFeedback.ShowChange(playerId, delta);
+    }
+
+    // Server only (PhaseManager, during the countdown): every player's gold, richest first, the
+    // players in danger in colour. Built here: the names and the gold are the same on every peer.
+    public void ShowStandings()
+    {
+        string danger = ColorUtility.ToHtmlStringRGB(_dangerColor);
+
+        string standings = string.Join("   ", Players.Characters
+            .Select(c => c.OwnerClientId)
+            .Where(_scores.IsKnown)
+            .OrderByDescending(_scores.GoldOf)
+            .Select(id =>
+            {
+                string line = $"{Players.NameOf(id)} {_scores.GoldOf(id)}";
+                return _scores.IsInDanger(id) ? $"<color=#{danger}>{line}</color>" : line;
+            }));
+
+        ShowMessageClientRpc(standings);
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]

@@ -35,6 +35,13 @@ public static class Players
         return null;
     }
 
+    // The name shown for a player: his character's (the same on every peer), or "Player N".
+    public static string NameOf(ulong clientId)
+    {
+        PlayerCharacter character = TryGet(clientId, out PlayerIdentity player) ? player.Character : null;
+        return character != null ? character.name : $"Player {clientId}";
+    }
+
     // The characters of the players who have one.
     public static IEnumerable<PlayerCharacter> Characters
     {
@@ -58,4 +65,4 @@ public static class Players
     // Static state survives "Enter Play Mode" without a domain reload: start every play session empty.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetOnPlay() => s_registry.Clear();
-}
+}

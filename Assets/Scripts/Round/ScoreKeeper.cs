@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
@@ -9,6 +10,11 @@ public class ScoreKeeper : NetworkBehaviour
 {
     [Tooltip("The gold every player starts the game with.")]
     [SerializeField] private int _startingGold = 100;
+    [Tooltip("At or below this, a player is in danger (one explosion from the end): marked on screen.")]
+    [SerializeField] private int _dangerThreshold = 25;
+
+    // Server only: a player's gold has just changed (the player, the change).
+    public event Action<ulong, int> GoldChanged;
 
     // Every player's gold, changed at once by Change(). Kept under its former name: the scoreboard reads it.
     public NetworkVariable<Dictionary<ulong, int>> PlayerTotalScores { get; private set; }
@@ -62,6 +68,9 @@ public class ScoreKeeper : NetworkBehaviour
         PlayerTotalScores.Value[playerId] += delta;
         ScoreLines.Add(new ScoreLine(playerId, delta, reason));
         MarkTotalsDirty();
+
+        if (delta != 0)
+            GoldChanged?.Invoke(playerId, delta);
     }
 
     // The round is over: the players still here become the scoreboard's columns.
@@ -100,6 +109,15 @@ public class ScoreKeeper : NetworkBehaviour
         return PlayerTotalScores.Value.TryGetValue(playerId, out int gold) ? gold : 0;
     }
 
+    public bool IsKnown(ulong playerId) => PlayerTotalScores.Value.ContainsKey(playerId);
+
+    // One explosion from the end (still in the game: 0 ends it).
+    public bool IsInDanger(ulong playerId)
+    {
+        int gold = GoldOf(playerId);
+        return IsKnown(playerId) && gold > 0 && gold <= _dangerThreshold;
+    }
+
     // One player's lines of this round, in scoring order.
     public List<ScoreLine> GetLinesOf(ulong playerId)
     {
@@ -116,4 +134,4 @@ public class ScoreKeeper : NetworkBehaviour
     }
 
     #endregion
-}
+}

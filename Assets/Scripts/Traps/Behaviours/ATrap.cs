@@ -230,4 +230,4 @@ public abstract class ATrap : NetworkBehaviour
         if (_actionSound != null)
             AudioSource.PlayClipAtPoint(_actionSound, position);
     }
-}
+}

@@ -26,17 +26,10 @@ public class EndPhase : APhase
         if (winnerIds.Length == 0)
             return "No winner this time!";
 
-        string names = string.Join(" & ", winnerIds.Select(GetCharacterName));
+        string names = string.Join(" & ", winnerIds.Select(Players.NameOf));
 
         return winnerIds.Length == 1
             ? $"{names} is the real King of Pirates!"
             : $"{names} share the crown of the Pirates!";
     }
-
-    private static string GetCharacterName(ulong clientId)
-    {
-        PlayerCharacter character = Players.TryGet(clientId, out PlayerIdentity player) ? player.Character : null;
-
-        return character != null ? character.name : $"Player {clientId}";
-    }
-}
+}

@@ -93,7 +93,7 @@ AnimationClip:
     intParameter: 0
     messageOptions: 0
   - time: 0.9166667
-    functionName: OnArrowShooted
+    functionName: OnArrowShot
     data: 
     objectReferenceParameter: {fileID: 0}
     floatParameter: 0

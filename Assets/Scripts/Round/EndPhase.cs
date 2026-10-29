@@ -12,7 +12,7 @@ public class EndPhase : APhase
     public override void Begin()
     {
         foreach (PlayerCharacter character in Players.Characters)
-            character.GetComponent<TransferManager>().Revive();
+            character.GetComponent<PlayerBomb>().Revive();
 
         TrapPlacementManager.Instance.DespawnAllTraps();
 

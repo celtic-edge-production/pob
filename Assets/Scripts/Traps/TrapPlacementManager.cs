@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.Tilemaps;
 
 // Server-side trap flow of phase 1: the chest offers one trap per player, each player picks
@@ -21,7 +22,8 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
 
     [Header("Tilemaps")]
     [Tooltip("The zone where traps may be placed.")]
-    [SerializeField] private Tilemap _paternTileMap;
+    [FormerlySerializedAs("_paternTileMap")]
+    [SerializeField] private Tilemap _patternTilemap;
 
     [Header("Traps")]
     [Tooltip("The traps the chest can offer, drawn at random.")]
@@ -46,14 +48,14 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     protected override void OnSingletonAwake()
     {
         // Fallback for levels where the zone tilemap is not assigned in the Inspector yet.
-        if (_paternTileMap == null)
+        if (_patternTilemap == null)
         {
-            _paternTileMap = GameObject.Find("Background").GetComponent<Tilemap>();
+            _patternTilemap = GameObject.Find("Background").GetComponent<Tilemap>();
             Debug.LogWarning("[TrapPlacementManager] Assign the zone tilemap in the Inspector.");
         }
 
         // Traps may go on every painted cell of the zone tilemap: walls must be left unpainted.
-        _grid = new TrapGrid(cell => _paternTileMap.HasTile(cell));
+        _grid = new TrapGrid(cell => _patternTilemap.HasTile(cell));
 
         if (_trapPool == null || _trapPool.Length == 0)
             Debug.LogError("[TrapPlacementManager] The trap pool is empty: assign the trap prefabs in the Inspector.");
@@ -62,18 +64,18 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     // Valid on every peer: clients use it to send the preview only when the hovered cell changes.
     public Vector3Int WorldToCell(Vector3 worldPosition)
     {
-        return _paternTileMap.WorldToCell(worldPosition);
+        return _patternTilemap.WorldToCell(worldPosition);
     }
 
     #region Player actions (RPCs from the clients, sender validated)
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void OnPlayerSelectedATrapServerRpc(int trapId, ulong playerId, ulong cursordId, RpcParams rpcParams = default)
+    public void OnPlayerSelectedATrapServerRpc(int trapId, ulong playerId, ulong cursorId, RpcParams rpcParams = default)
     {
         if (!RpcValidation.SenderMatches(rpcParams, playerId))
             return;
 
-        NetworkObject cursor = GetNetworkObjectById(cursordId);
+        NetworkObject cursor = GetNetworkObjectById(cursorId);
         if (cursor == null || cursor.OwnerClientId != playerId)
             return;
 
@@ -343,10 +345,10 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     {
         foreach (Vector3Int cell in cells)
         {
-            if (_paternTileMap.HasTile(cell))
+            if (_patternTilemap.HasTile(cell))
             {
-                _paternTileMap.SetTileFlags(cell, TileFlags.None);
-                _paternTileMap.SetColor(cell, color);
+                _patternTilemap.SetTileFlags(cell, TileFlags.None);
+                _patternTilemap.SetColor(cell, color);
             }
         }
     }
@@ -476,4 +478,4 @@ public class TrapPlacementManager : NetworkSingleton<TrapPlacementManager>
     }
 
     #endregion
-}
+}

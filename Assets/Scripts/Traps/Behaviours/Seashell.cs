@@ -3,15 +3,14 @@ using UnityEngine;
 
 public class Seashell : ATrap
 {
-    #region Public Attributs
-    //public GameObject JumeledSeashell;
+    #region Public Attributes
     public NetworkVariable<bool> CanTeleport = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> IsLinked = new NetworkVariable<bool>(false);
-    public NetworkVariable<NetworkObjectReference> JumeledSeashell = new NetworkVariable<NetworkObjectReference>();
+    public NetworkVariable<NetworkObjectReference> LinkedSeashell = new NetworkVariable<NetworkObjectReference>();
     public float ElapsedTime = 0.0f;
     #endregion
 
-    #region [SerializeField] Private Attributs
+    #region [SerializeField] Private Attributes
     [SerializeField] private float _DurationBeforeCanTeleport = 4f;
     #endregion
 
@@ -115,7 +114,7 @@ public class Seashell : ATrap
         _animator.SetBool("IsTeleporting", false);
     }
 
-    public void OnJumeledSeashellTeleportation()
+    public void OnLinkedSeashellTeleportation()
     {
         if (!IsOwner)
             return;
@@ -130,18 +129,15 @@ public class Seashell : ATrap
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     public void TeleportPlayerServerRpc(ulong playerId)
     {
-        // Bug corrige : "this.JumeledSeashell == null" testait le wrapper
-        // NetworkVariable<T> lui-meme, qui n'est jamais null une fois construit -
-        // ce garde-fou ne se declenchait jamais. Le vrai test utile (le GameObject
-        // resolu depuis .Value) est deja fait plus bas via "!JumeledSeashell".
+        // The NetworkVariable itself is never null: the linked shell is checked through its value below.
 
-        // Get the JumeledSeashell GameObject
-        GameObject JumeledSeashell = this.JumeledSeashell.Value;
+        // Get the LinkedSeashell GameObject
+        GameObject LinkedSeashell = this.LinkedSeashell.Value;
 
-        if (!CanTeleport.Value || !JumeledSeashell || !IsLinked.Value)
+        if (!CanTeleport.Value || !LinkedSeashell || !IsLinked.Value)
         {
             Debug.Log("CanTeleport.Value -> " + CanTeleport.Value);
-            Debug.Log("JumeledSeashell -> " + JumeledSeashell);
+            Debug.Log("LinkedSeashell -> " + LinkedSeashell);
             Debug.Log("IsLinked.Value -> " + IsLinked.Value);
 
             Debug.Log("Can't teleport player");
@@ -149,12 +145,12 @@ public class Seashell : ATrap
         }
 
         // Call a ClientRpc to update the position on all clients
-        TeleportPlayerClientRpc(playerId, JumeledSeashell.transform.position);
+        TeleportPlayerClientRpc(playerId, LinkedSeashell.transform.position);
 
         ChangeStateCanTeleportServerRpc(false);
         _animator.SetBool("IsOpening", false);
         _animator.SetBool("IsTeleporting", true);
-        JumeledSeashell.GetComponent<Seashell>().OnJumeledSeashellTeleportation();
+        LinkedSeashell.GetComponent<Seashell>().OnLinkedSeashellTeleportation();
     }
 
     [Rpc(SendTo.ClientsAndHost)]
@@ -187,10 +183,7 @@ public class Seashell : ATrap
         {
             Seashell tempSeaShell = seashell.GetComponent<Seashell>();
 
-            // Check to avoid self linking
-            // Bug corrige : "tempSeaShell.JumeledSeashell != null" testait le wrapper
-            // NetworkVariable<T> lui-meme (toujours non-null), pas sa valeur - ce test
-            // ne filtrait jamais rien. IsLinked.Value seul est deja le bon signal reseau.
+            // Never link a shell to itself or to a shell already linked (IsLinked is the replicated signal).
             if (tempSeaShell == this || tempSeaShell.IsLinked.Value)
             {
                 continue;
@@ -210,10 +203,10 @@ public class Seashell : ATrap
         try
         {
             seashell.IsLinked.Value = true;
-            seashell.JumeledSeashell.Value = this.gameObject;
+            seashell.LinkedSeashell.Value = this.gameObject;
 
             IsLinked.Value = true;
-            JumeledSeashell.Value = seashell.gameObject;
+            LinkedSeashell.Value = seashell.gameObject;
 
             Debug.Log("Linking Seashell with another Seashell");
             return true;
@@ -228,22 +221,18 @@ public class Seashell : ATrap
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     private void ResetTrapServerRpc()
     {
-        // Bug corrige : "JumeledSeashell != null" testait le wrapper (toujours non-null),
-        // IsLinked.Value seul suffit comme garde.
+        // IsLinked is the guard: the NetworkVariable itself is never null.
         if (IsLinked.Value)
         {
-            GameObject gameObject = JumeledSeashell.Value;
+            GameObject gameObject = LinkedSeashell.Value;
 
             if (gameObject == null)
                 return;
 
             Seashell linkedShell = gameObject.GetComponent<Seashell>();
             linkedShell.IsLinked.Value = false;
-            // Bug corrige : "linkedShell.JumeledSeashell = null;" remplacait le wrapper
-            // NetworkVariable<T> entier par null au lieu de vider sa valeur - toute
-            // lecture/ecriture future de .Value sur ce coquillage plantait avec un
-            // NullReferenceException. Il faut vider la VALEUR, pas le wrapper.
-            linkedShell.JumeledSeashell.Value = default;
+            // Clear the value, never the NetworkVariable itself (any later .Value would throw).
+            linkedShell.LinkedSeashell.Value = default;
             linkedShell.CanTeleport.Value = false;
             linkedShell.ElapsedTime = 0.0f;
 
@@ -259,4 +248,4 @@ public class Seashell : ATrap
 
         ResetTrapServerRpc();
     }
-}
+}

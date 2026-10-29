@@ -239,7 +239,7 @@ public class PlayerCombat : NetworkBehaviour
         SetKnockedOutServerRpc(true);
     }
 
-    // Server only (TransferManager.Revive): every new round starts on its feet.
+    // Server only (PlayerBomb.Revive): every new round starts on its feet.
     public void ResetState()
     {
         if (!IsServer)

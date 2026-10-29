@@ -6,7 +6,7 @@ using static UnityEngine.RuleTile.TilingRuleOutput;
 
 public class FallingPlatform : ATrap
 {
-    #region [SerializeField] Private Attributs
+    #region [SerializeField] Private Attributes
     [SerializeField] private float _movementDuration = 2f;
     [SerializeField] private AnimationCurve _animationCurve;
     [SerializeField] float _direction = 1.0f;
@@ -14,7 +14,7 @@ public class FallingPlatform : ATrap
     [SerializeField] private AudioClip _AudioClip;
     #endregion
 
-    #region private Attributs
+    #region Private Attributes
     private float elapsedTime = 0.0f;
     #endregion
 

@@ -21,7 +21,7 @@ public class PlayerMovement : MonoBehaviour
 
     private PlayerCharacter _character;
     private PlayerCombat _combat;
-    private TransferManager _bomb;
+    private PlayerBomb _bomb;
     private Rigidbody2D _rigidBody;
     private Animator _animator;
 
@@ -53,7 +53,7 @@ public class PlayerMovement : MonoBehaviour
     {
         _character = GetComponent<PlayerCharacter>();
         _combat = GetComponent<PlayerCombat>();
-        _bomb = GetComponent<TransferManager>();
+        _bomb = GetComponent<PlayerBomb>();
         _rigidBody = GetComponent<Rigidbody2D>();
         _animator = GetComponent<Animator>();
 

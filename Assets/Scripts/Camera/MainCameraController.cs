@@ -33,13 +33,13 @@ public class MainCameraController : MonoBehaviour
 
         if (debug)
         {
-            // Applique les paramètres de debug
+            // Applies the debug settings
             Camera.main.transform.position = cameraPosition;
             Camera.main.orthographicSize = orthographicSize;
         }
         else if (originalPosition != null)
         {
-            // Restaure les paramètres d'origine
+            // Restores the original settings
             Camera.main.transform.position = originalPosition;
             Camera.main.orthographicSize = originalSize;
         }

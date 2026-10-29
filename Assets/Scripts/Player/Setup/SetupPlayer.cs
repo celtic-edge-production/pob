@@ -2,12 +2,14 @@ using System.Collections;
 using System.Linq;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class SetupPlayer : NetworkBehaviour
 {
 
     [Header("Player Controller to Setup")]
-    public PlayerIdentity AU_Controller;
+    [FormerlySerializedAs("AU_Controller")]
+    [SerializeField] private PlayerIdentity _player;
 
     [Header("NetworkObject to Spawn")]
     public GameObject Cursor;
@@ -77,8 +79,8 @@ public class SetupPlayer : NetworkBehaviour
             }
         }
 
-        AU_Controller.Init();
-        AU_Controller.SetPlayerID(OwnerClientId + 1);
-        AU_Controller.UpdatePlayerData();
+        _player.Init();
+        _player.SetPlayerID(OwnerClientId + 1);
+        _player.UpdatePlayerData();
     }
-}
+}

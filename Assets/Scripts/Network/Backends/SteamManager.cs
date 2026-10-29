@@ -1,9 +1,9 @@
 using Steamworks;
 using UnityEngine;
 
-// Initialise l'API Steamworks une seule fois au lancement du jeu.
-// Doit être présent sur un GameObject dans la toute première scène chargée
-// (Main Menu), avec DontDestroyOnLoad pour survivre aux changements de scène.
+// Initialises the Steamworks API once, when the game starts.
+// Must sit on a GameObject of the very first scene loaded (Main Menu), with DontDestroyOnLoad
+// so it survives the scene changes.
 public class SteamManager : MonoBehaviour
 {
     private static bool _initialized;
@@ -13,7 +13,7 @@ public class SteamManager : MonoBehaviour
     {
         if (_initialized)
         {
-            // Déjà initialisé par une instance précédente (changement de scène) : doublon, on se détruit.
+            // Already initialised by an earlier instance (scene change): this one is a duplicate.
             Destroy(gameObject);
             return;
         }

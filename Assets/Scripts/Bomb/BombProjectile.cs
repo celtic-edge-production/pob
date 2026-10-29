@@ -28,7 +28,7 @@ public class BombProjectile : NetworkBehaviour
         Vector2 rbVelocity = new Vector2(launchAngle.x * force * facingDirection * forceX, launchAngle.y * force);
 
         rb.linearVelocity = rbVelocity;
-        Invoke(nameof(EnablePickUp), pickUpDelay); // Permet de ramasser après un délai
+        Invoke(nameof(EnablePickUp), pickUpDelay); // Can be picked up after a short delay
     }
 
     private void EnablePickUp()
@@ -53,7 +53,7 @@ public class BombProjectile : NetworkBehaviour
             }
             else if (hitPlayer != null && hitPlayer.OwnerClientId == ownerClientId && canBePickedUp)
             {
-                TransferManager thrower = hitPlayer.GetComponentInChildren<TransferManager>();
+                PlayerBomb thrower = hitPlayer.GetComponentInChildren<PlayerBomb>();
                 if (thrower != null)
                     thrower.HasBomb.Value = true;
                 DestroyBomb();
@@ -73,4 +73,4 @@ public class BombProjectile : NetworkBehaviour
         // Server-only (guarded in OnTriggerEnter2D). Despawn() also destroys the GameObject.
         NetworkObject.Despawn();
     }
-}
+}

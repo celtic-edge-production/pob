@@ -28,7 +28,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     public bool IsGameOver { get; private set; }
 
     // Server only: the bomb state of every player in the current round.
-    private readonly List<TransferManager> _players = new();
+    private readonly List<PlayerBomb> _players = new();
 
     protected override void OnSingletonAwake()
     {
@@ -61,7 +61,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
         foreach (PlayerCharacter character in Players.Characters)
         {
-            TransferManager player = character.GetComponent<TransferManager>();
+            PlayerBomb player = character.GetComponent<PlayerBomb>();
             player.Revive();
             _players.Add(player);
         }
@@ -97,7 +97,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
 
     private void SelectRandomBombHolder()
     {
-        List<TransferManager> alivePlayers = _players.Where(p => p.IsAlive.Value).ToList();
+        List<PlayerBomb> alivePlayers = _players.Where(p => p.IsAlive.Value).ToList();
 
         if (alivePlayers.Count < 2)
             return;
@@ -105,7 +105,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         // The previous bomb was already cleared by BombManager.StopRound(). Try the players in a
         // random order: the last giver may still be invincible and refuse the bomb, which used to
         // leave the round without a bomb (and without an end).
-        foreach (TransferManager candidate in alivePlayers.OrderBy(_ => UnityEngine.Random.value))
+        foreach (PlayerBomb candidate in alivePlayers.OrderBy(_ => UnityEngine.Random.value))
         {
             if (BombManager.Instance.AssignBombHolder(candidate.OwnerClientId))
                 return;
@@ -118,9 +118,9 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
     private void CheckForRoundEnd()
     {
         int survivalPoints = _roundPoints / MathUtils.SafeDivisor(_players.Count);
-        List<TransferManager> survivors = _players.Where(p => p.IsAlive.Value).ToList();
+        List<PlayerBomb> survivors = _players.Where(p => p.IsAlive.Value).ToList();
 
-        foreach (TransferManager survivor in survivors)
+        foreach (PlayerBomb survivor in survivors)
             Scores.AddLine(survivor.OwnerClientId, survivalPoints, SurvivalReason);
 
         if (survivors.Count <= 1)
@@ -180,7 +180,7 @@ public class GameRoundManager : NetworkSingleton<GameRoundManager>
         BombManager.Instance.StopRound();
 
         foreach (PlayerCharacter character in Players.Characters)
-            character.GetComponent<TransferManager>().Revive();
+            character.GetComponent<PlayerBomb>().Revive();
 
         TrapPlacementManager.Instance.DespawnAllTraps();
 

@@ -3,9 +3,9 @@ using Unity.Netcode.Components;
 using UnityEngine;
 
 // A playable character: who controls it, where it faces, and its camera. The rest lives in
-// PlayerMovement (running, jumping), PlayerCombat (punch, knock-out, stun) and TransferManager
+// PlayerMovement (running, jumping), PlayerCombat (punch, knock-out, stun) and PlayerBomb
 // (bomb: holding, throwing, passing, alive). This component routes the owner's input to them.
-[RequireComponent(typeof(PlayerMovement), typeof(PlayerCombat), typeof(TransferManager))]
+[RequireComponent(typeof(PlayerMovement), typeof(PlayerCombat), typeof(PlayerBomb))]
 public class PlayerCharacter : NetworkBehaviour
 {
     // True while a player controls this character.
@@ -26,7 +26,7 @@ public class PlayerCharacter : NetworkBehaviour
     private SpriteRenderer _spriteRenderer;
     private PlayerMovement _movement;
     private PlayerCombat _combat;
-    private TransferManager _bomb;
+    private PlayerBomb _bomb;
     private Hideable _hideable;
 
     private InputReader _Input;
@@ -38,7 +38,7 @@ public class PlayerCharacter : NetworkBehaviour
         _spriteRenderer = GetComponent<SpriteRenderer>();
         _movement = GetComponent<PlayerMovement>();
         _combat = GetComponent<PlayerCombat>();
-        _bomb = GetComponent<TransferManager>();
+        _bomb = GetComponent<PlayerBomb>();
         _hideable = Hideable.On(this);
     }
 
@@ -231,7 +231,7 @@ public class PlayerCharacter : NetworkBehaviour
             _playerCamera.gameObject.SetActive(true);
     }
 
-    public void DesactivateCamera()
+    public void DeactivateCamera()
     {
         if (IsOwner && Camera.main != null)
             _playerCamera.gameObject.SetActive(false);

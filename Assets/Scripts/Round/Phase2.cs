@@ -10,13 +10,13 @@ public class Phase2 : APhase
 
     public override void Begin()
     {
-        DesactivateCameraClientRpc();
+        DeactivateCameraClientRpc();
         SwitchTileMapStateClientRpc(true);
         SetPlayersPlaying(true);
     }
 
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
-    public void DesactivateCameraClientRpc()
+    public void DeactivateCameraClientRpc()
     {
         Camera mainCamera = Camera.main;
         if (mainCamera != null)
@@ -28,4 +28,4 @@ public class Phase2 : APhase
     {
         timer.text = text;
     }
-}
+}

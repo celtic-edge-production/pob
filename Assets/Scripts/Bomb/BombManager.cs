@@ -51,7 +51,7 @@ public class BombManager : NetworkSingleton<BombManager>
     public void TransferBombServerRpc(ulong newHolderId, RpcParams rpcParams = default)
     {
         // Only the current holder may pass the bomb: the request comes from the holder's own
-        // machine (TransferManager.OnCollisionEnter2D), and the sender is checked again here.
+        // machine (PlayerBomb.OnCollisionEnter2D), and the sender is checked again here.
         if (!RpcValidation.SenderMatches(rpcParams, bombHolderId.Value))
             return;
 
@@ -63,8 +63,8 @@ public class BombManager : NetworkSingleton<BombManager>
 
     private bool AreInPassRange(ulong holderId, ulong targetId)
     {
-        TransferManager holder = GetBombState(holderId);
-        TransferManager target = GetBombState(targetId);
+        PlayerBomb holder = GetBombState(holderId);
+        PlayerBomb target = GetBombState(targetId);
         if (holder == null || target == null)
             return false;
 
@@ -79,7 +79,7 @@ public class BombManager : NetworkSingleton<BombManager>
         if (!NetworkManager.Singleton.ConnectedClients.ContainsKey(newHolderId))
             return false;
 
-        TransferManager newHolder = GetBombState(newHolderId);
+        PlayerBomb newHolder = GetBombState(newHolderId);
 
         if (!CanTransferBombTo(newHolder, newHolderId))
             return false;
@@ -100,15 +100,15 @@ public class BombManager : NetworkSingleton<BombManager>
 
     // The bomb state of a player's character, or null (unknown player, no character).
     // Through the registry: the character is not a child of its player object.
-    private static TransferManager GetBombState(ulong clientId)
+    private static PlayerBomb GetBombState(ulong clientId)
     {
         PlayerCharacter character = Players.TryGet(clientId, out PlayerIdentity player) ? player.Character : null;
-        return character != null ? character.GetComponent<TransferManager>() : null;
+        return character != null ? character.GetComponent<PlayerBomb>() : null;
     }
 
-    private bool CanTransferBombTo(TransferManager target, ulong newHolderId)
+    private bool CanTransferBombTo(PlayerBomb target, ulong newHolderId)
     {
-        // Checked here, on the server: the client-side checks in TransferManager are only a
+        // Checked here, on the server: the client-side checks in PlayerBomb are only a
         // pre-filter, and a thrown bomb (BombProjectile) has none.
         bool isAlive = target != null && target.IsAlive.Value;
         bool isInvincible = target != null && target.IsPlayerInvincible();
@@ -121,7 +121,7 @@ public class BombManager : NetworkSingleton<BombManager>
     private bool TryReleaseCurrentHolder()
     {
         // No holder yet (first bomb of the round), or he left.
-        TransferManager holderBomb = GetBombState(bombHolderId.Value);
+        PlayerBomb holderBomb = GetBombState(bombHolderId.Value);
         if (holderBomb == null)
             return true;
 
@@ -134,7 +134,7 @@ public class BombManager : NetworkSingleton<BombManager>
         return true;
     }
 
-    private void GiveBombTo(TransferManager newHolderBomb, ulong newHolderId)
+    private void GiveBombTo(PlayerBomb newHolderBomb, ulong newHolderId)
     {
         if (newHolderBomb != null)
             newHolderBomb.HasBomb.Value = true;
@@ -152,7 +152,7 @@ public class BombManager : NetworkSingleton<BombManager>
 
     private void ExplodeBombHolder()
     {
-        TransferManager currentHolder = GetBombState(bombHolderId.Value);
+        PlayerBomb currentHolder = GetBombState(bombHolderId.Value);
 
         if (currentHolder != null)
             currentHolder.MarkAsDead();
@@ -168,11 +168,11 @@ public class BombManager : NetworkSingleton<BombManager>
     }
 
     // Every player's bomb state, alive ones only.
-    private static IEnumerable<TransferManager> AlivePlayers()
+    private static IEnumerable<PlayerBomb> AlivePlayers()
     {
         foreach (PlayerCharacter character in Players.Characters)
         {
-            TransferManager bomb = character.GetComponent<TransferManager>();
+            PlayerBomb bomb = character.GetComponent<PlayerBomb>();
             if (bomb != null && bomb.IsAlive.Value)
                 yield return bomb;
         }
@@ -198,7 +198,7 @@ public class BombManager : NetworkSingleton<BombManager>
 
         // The holder left with the bomb: give it to a random alive player.
         // The fuse keeps burning (AssignBombHolder only lights it when no bomb is running).
-        List<TransferManager> candidates = AlivePlayers()
+        List<PlayerBomb> candidates = AlivePlayers()
             .Where(p => p.OwnerClientId != clientId && !p.IsPlayerInvincible())
             .ToList();
 

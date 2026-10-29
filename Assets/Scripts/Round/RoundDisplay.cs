@@ -40,7 +40,7 @@ public class RoundDisplay : NetworkBehaviour
     }
 
     // Every peer: back to the shared main camera, and off with this peer's own character camera.
-    // Only the owner can switch it off (PlayerCharacter.DesactivateCamera checks IsOwner): done on
+    // Only the owner can switch it off (PlayerCharacter.DeactivateCamera checks IsOwner): done on
     // the server, it only reached the host's character, and every client kept two AudioListeners.
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     public void ResetCameraClientRpc()
@@ -53,10 +53,10 @@ public class RoundDisplay : NetworkBehaviour
                 mainCameraController.ResetCamera();
         }
 
-        // After the main camera is back: DesactivateCamera never leaves a peer without a camera.
+        // After the main camera is back: DeactivateCamera never leaves a peer without a camera.
         PlayerCharacter localCharacter = Players.Local != null ? Players.Local.Character : null;
         if (localCharacter != null)
-            localCharacter.DesactivateCamera();
+            localCharacter.DeactivateCamera();
     }
 
     // Called by PhaseManager after a delay: the scores travel through NetworkVariables (sent on the

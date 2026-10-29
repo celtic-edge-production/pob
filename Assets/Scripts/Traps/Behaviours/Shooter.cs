@@ -39,7 +39,7 @@ public class Shooter : ATrap
     }
 
     // Animation event: end of the shooting animation.
-    public void OnArrowShooted()
+    public void OnArrowShot()
     {
         _animator.SetBool("Shoot", false);
     }
@@ -69,4 +69,4 @@ public class Shooter : ATrap
         if (Mathf.Approximately(z, 270)) return Vector2.left;
         return Vector2.down;
     }
-}
+}

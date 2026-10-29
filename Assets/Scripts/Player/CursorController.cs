@@ -19,6 +19,8 @@ public class CursorController : NetworkBehaviour
     [Header("Cursor Settings")]
     public float joystickSpeed = 10f;
 
+    private const float StickDeadZone = 0.1f;
+
     #endregion
 
     private void Awake()
@@ -130,14 +132,12 @@ public class CursorController : NetworkBehaviour
     {
         Vector3 targetPosition = transform.position;
 
-        // If the player is using a joystick
-        float joystickX = Input.GetAxis("Horizontal");
-        float joystickY = Input.GetAxis("Vertical");
+        // The gamepad stick moves the cursor; otherwise it follows the mouse.
+        Vector2 stick = Gamepad.current != null ? Gamepad.current.leftStick.ReadValue() : Vector2.zero;
 
-        if (Mathf.Abs(joystickX) > 0.1f || Mathf.Abs(joystickY) > 0.1f)
+        if (Mathf.Abs(stick.x) > StickDeadZone || Mathf.Abs(stick.y) > StickDeadZone)
         {
-            // Move the cursor with the joystick
-            Vector3 joystickDelta = joystickSpeed * Time.deltaTime * new Vector3(joystickX, joystickY, 0);
+            Vector3 joystickDelta = joystickSpeed * Time.deltaTime * new Vector3(stick.x, stick.y, 0);
 
             targetPosition += joystickDelta;
 
@@ -151,9 +151,9 @@ public class CursorController : NetworkBehaviour
 
             Mouse.current?.WarpCursorPosition(new Vector2(screenPosition.x, screenPosition.y));
         }
-        else
+        else if (Mouse.current != null)
         {
-            Vector3 mousePosition = Input.mousePosition;
+            Vector3 mousePosition = Mouse.current.position.ReadValue();
 
             mousePosition.z = Camera.main.nearClipPlane;
             targetPosition = Camera.main.ScreenToWorldPoint(mousePosition);
@@ -200,4 +200,4 @@ public class CursorController : NetworkBehaviour
     {
         return _HoveredEntity;
     }
-}
+}

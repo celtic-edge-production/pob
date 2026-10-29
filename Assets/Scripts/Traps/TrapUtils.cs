@@ -1,6 +1,5 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public static class TrapUtils
 {
@@ -9,11 +8,11 @@ public static class TrapUtils
         Camera mainCamera = Camera.main;
 
         // if camera is desactivated, skip
-        if (!mainCamera || mainCamera.isActiveAndEnabled == false)
+        if (!mainCamera || mainCamera.isActiveAndEnabled == false || Mouse.current == null)
         {
             return Vector3.zero;
         }
-        Vector3 mousePosition = Input.mousePosition;
+        Vector3 mousePosition = Mouse.current.position.ReadValue();
         mousePosition.z = mainCamera.nearClipPlane + 1;
         mousePosition = mainCamera.ScreenToWorldPoint(mousePosition);
 

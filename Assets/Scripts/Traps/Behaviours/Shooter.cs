@@ -55,6 +55,10 @@ public class Shooter : ATrap
             return;
         }
 
+        // Its hits are credited to whoever placed this shooter.
+        if (arrow.TryGetComponent(out Arrow arrowComponent))
+            arrowComponent.TrapOwnerId = ChosenBy;
+
         networkObject.Spawn(destroyWithScene: true); // Belongs to the level: never carried into the next scene.
         arrow.GetComponent<Rigidbody2D>().linearVelocity = GetShootDirection() * _ShootSpeed;
     }
@@ -69,4 +73,4 @@ public class Shooter : ATrap
         if (Mathf.Approximately(z, 270)) return Vector2.left;
         return Vector2.down;
     }
-}
+}

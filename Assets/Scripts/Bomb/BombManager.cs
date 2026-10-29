@@ -13,12 +13,23 @@ public class BombManager : NetworkSingleton<BombManager>
     // No holder, no assist.
     public const ulong NoPlayer = ulong.MaxValue;
 
-    // Server only: the holder has just exploded. Gives the player who passed him the bomb last
-    // (NoPlayer if none). GameRoundManager scores and decides whether the round goes on.
+    // Server only: the holder has just exploded (his client id). One bomb per round: GameRoundManager
+    // takes his gold and ends the round.
     public event System.Action<ulong> BombExploded;
 
-    [Tooltip("Base fuse in seconds, divided by (alive players - 1), plus 0 to 5 random seconds.")]
+    [Header("Fuse (seconds)")]
+    [Tooltip("The fuse of a round: one bomb per round, so a round lasts about this long.")]
     public float bombTimer = 60f;
+    [Tooltip("The fuse of a sudden death round (tie for the first place).")]
+    [SerializeField] private float _suddenDeathFuse = 20f;
+    [Tooltip("Whoever receives the bomb always has at least this long before it explodes.")]
+    [SerializeField] private float _minFuseOnReceive = 8f;
+    [Tooltip("The guaranteed time shrinks by this much each time it is used, so a round always ends.")]
+    [SerializeField] private float _minFuseStep = 2f;
+    [Tooltip("The guaranteed time never goes below this.")]
+    [SerializeField] private float _minFuseLowest = 3f;
+
+    [Header("Pass")]
 
     [Tooltip("A pass on contact is refused when the two players are further apart than this on the server.")]
     [SerializeField] private float _maxPassDistance = 1.5f;
@@ -29,7 +40,9 @@ public class BombManager : NetworkSingleton<BombManager>
     // every peer computes the remaining time locally from the synchronized server clock.
     public NetworkVariable<double> ExplosionTime = new NetworkVariable<double>(NoExplosion);
 
-    private ulong oldBombHolderId = NoPlayer;
+    // Server only: this round's fuse and guaranteed time on receiving the bomb.
+    private bool _isSuddenDeath;
+    private float _currentMinFuse;
 
     public bool IsRoundRunning => ExplosionTime.Value != NoExplosion;
 
@@ -87,15 +100,35 @@ public class BombManager : NetworkSingleton<BombManager>
         if (!TryReleaseCurrentHolder())
             return false;
 
-        // First bomb of the round: light the fuse.
+        // First bomb of the round: light the fuse. Afterwards, a pass: the receiver gets his
+        // guaranteed time.
         if (!IsRoundRunning)
             StartCountdown();
+        else
+            ApplyMinimumFuse();
 
         GiveBombTo(newHolder, newHolderId);
 
-        oldBombHolderId = bombHolderId.Value;
         bombHolderId.Value = newHolderId;
         return true;
+    }
+
+    // Server only (GameRoundManager): the next round is a sudden death, with a shorter fuse.
+    public void SetSuddenDeath(bool suddenDeath)
+    {
+        _isSuddenDeath = suddenDeath;
+    }
+
+    private void ApplyMinimumFuse()
+    {
+        double now = NetworkManager.ServerTime.Time;
+        double remaining = ExplosionTime.Value - now;
+
+        if (!BombRules.UsesMinimum(remaining, _currentMinFuse))
+            return;
+
+        ExplosionTime.Value = now + BombRules.FuseAfterPass(remaining, _currentMinFuse);
+        _currentMinFuse = BombRules.NextMinimum(_currentMinFuse, _minFuseStep, _minFuseLowest);
     }
 
     // The bomb state of a player's character, or null (unknown player, no character).
@@ -144,9 +177,9 @@ public class BombManager : NetworkSingleton<BombManager>
 
     private void StartCountdown()
     {
-        int alivePlayers = AlivePlayers().Count();
-        float duration = bombTimer / MathUtils.SafeDivisor(alivePlayers) + Random.Range(0f, 5f);
+        float duration = _isSuddenDeath ? _suddenDeathFuse : bombTimer;
 
+        _currentMinFuse = _minFuseOnReceive;
         ExplosionTime.Value = NetworkManager.ServerTime.Time + duration;
     }
 
@@ -159,12 +192,12 @@ public class BombManager : NetworkSingleton<BombManager>
         else
             Debug.LogWarning($"[BombManager] No character found for bomb holder {bombHolderId.Value}.");
 
-        // StopRound() resets oldBombHolderId, read it first.
-        ulong assistId = oldBombHolderId;
+        // StopRound() clears the holder, read it first.
+        ulong explodedId = bombHolderId.Value;
 
         StopRound();
 
-        BombExploded?.Invoke(assistId);
+        BombExploded?.Invoke(explodedId);
     }
 
     // Every player's bomb state, alive ones only.
@@ -189,10 +222,6 @@ public class BombManager : NetworkSingleton<BombManager>
 
     public void HandlePlayerLeft(ulong clientId)
     {
-        // No assist points for a player who left.
-        if (oldBombHolderId == clientId)
-            oldBombHolderId = NoPlayer;
-
         if (!IsRoundRunning || bombHolderId.Value != clientId)
             return;
 
@@ -213,7 +242,6 @@ public class BombManager : NetworkSingleton<BombManager>
     {
         ExplosionTime.Value = NoExplosion;
         bombHolderId.Value = NoPlayer;
-        oldBombHolderId = NoPlayer;
 
         DespawnActiveBombs();
     }

@@ -1,3 +1,4 @@
+using System;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -22,6 +23,14 @@ public class PlayerCombat : NetworkBehaviour
     public NetworkVariable<bool> IsKnockedOut = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> IsStunned = new NetworkVariable<bool>(false);
 
+    // Trap hits this character can still take this round. Server-written by GameRoundManager,
+    // replicated for the display.
+    public NetworkVariable<int> TrapLives = new NetworkVariable<int>(3);
+
+    // Server only: a trap has hit this character (the character, the client id of the trap's
+    // owner). GameRoundManager counts the lives.
+    public static event Action<PlayerCombat, ulong> HitByTrapOnServer;
+
     private PlayerCharacter _character;
     private PlayerMovement _movement;
     private Rigidbody2D _rigidBody;
@@ -32,6 +41,10 @@ public class PlayerCombat : NetworkBehaviour
     private float _flightTime;
     private bool _isStunnedHere;
     private float _stunTimeLeft;
+    private float _outOfSyncTime;
+
+    // How long the server's copy may disagree with the owner before the owner sends it again.
+    private const float ResyncDelay = 0.5f;
 
     // Owner only (PlayerMovement): flying after a hit, no air control.
     public bool IsFlying => _isFlying;
@@ -73,6 +86,27 @@ public class PlayerCombat : NetworkBehaviour
             UpdateFlight();
         else if (_isStunnedHere)
             UpdateStun();
+        else
+            ResyncIfStale();
+    }
+
+    // Owner only. The owner decides the knock-out and the stun; the server's copy can be left behind
+    // when its reset (respawn, new round) crosses a landing still on its way. Sent again until it agrees.
+    private void ResyncIfStale()
+    {
+        if (!IsKnockedOut.Value && !IsStunned.Value)
+        {
+            _outOfSyncTime = 0f;
+            return;
+        }
+
+        _outOfSyncTime += Time.deltaTime;
+        if (_outOfSyncTime < ResyncDelay)
+            return;
+
+        _outOfSyncTime = 0f;
+        SetKnockedOutServerRpc(false);
+        SetStunnedServerRpc(false);
     }
 
     // Owner only. Landed on anything solid (ground, a trap, another player), or flying for too
@@ -176,8 +210,9 @@ public class PlayerCombat : NetworkBehaviour
             return;
 
         // The collider's centre is used rather than the transform, whose pivot is not always in
-        // the middle of the trap.
-        KnockOut(KnockbackAwayFrom(collision.bounds.center));
+        // the middle of the trap. Already down: the hit does not count again.
+        if (!KnockOut(KnockbackAwayFrom(collision.bounds.center)))
+            return;
 
         // The server cannot see this contact reliably (this character is driven by its owner),
         // so the owner reports it and the trap plays its hit sound for everyone.
@@ -193,15 +228,21 @@ public class PlayerCombat : NetworkBehaviour
             return;
 
         ATrap trap = trapObject.GetComponentInChildren<ATrap>();
-        if (trap != null)
-            trap.OnPlayerHit();
+        if (trap == null)
+            return;
+
+        trap.OnPlayerHit();
+        HitByTrapOnServer?.Invoke(this, trap.ChosenBy);
     }
 
     // Server only: a hit the server decides (an arrow), sent to the owner, where the physics runs.
-    public void KnockOutFrom(Vector2 origin)
+    public void KnockOutFrom(Vector2 origin, ulong trapOwnerId)
     {
-        if (IsServer && _character.CanAct())
-            KnockOutRpc(KnockbackAwayFrom(origin));
+        if (!IsServer || !_character.CanAct())
+            return;
+
+        KnockOutRpc(KnockbackAwayFrom(origin));
+        HitByTrapOnServer?.Invoke(this, trapOwnerId);
     }
 
     // Pushed away from the origin of the hit.
@@ -223,12 +264,13 @@ public class PlayerCombat : NetworkBehaviour
     #region Knock-out and stun
 
     // Owner only: the force goes where the physics is authoritative (NetworkTransform with owner authority).
-    private void KnockOut(Vector2 force)
+    // Returns false when the character was already down.
+    private bool KnockOut(Vector2 force)
     {
         // Already down here, even if the server has not heard of it yet: a second trap touched
         // during the flight does nothing.
         if (_isFlying || _isStunnedHere)
-            return;
+            return false;
 
         _isFlying = true;
         _flightTime = 0f;
@@ -237,6 +279,7 @@ public class PlayerCombat : NetworkBehaviour
         _animator.SetTrigger("isHit");
         _movement.OnKnockedOut();
         SetKnockedOutServerRpc(true);
+        return true;
     }
 
     // Server only (PlayerBomb.Revive): every new round starts on its feet.
@@ -297,4 +340,4 @@ public class PlayerCombat : NetworkBehaviour
         Gizmos.DrawWireSphere(transform.position, _punchRadius);
     }
 
-}
+}

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using NUnit.Framework;
 
-// Who wins and when the game ends (formerly ScoreKeeperTests).
+// Who leads, how much gold a loss takes, when the game ends.
 public class ScoreRulesTests
 {
     [Test]
@@ -25,26 +25,44 @@ public class ScoreRulesTests
     }
 
     [Test]
-    public void IsGameWon_BeforeLastRoundAndBelowTarget_IsFalse()
+    public void Withdraw_EnoughGold_TakesTheWholeAmount()
     {
-        Assert.IsFalse(ScoreRules.IsGameWon(3, 25, new[] { 10, 40 }, 90));
+        Assert.AreEqual(25, ScoreRules.Withdraw(100, 25));
     }
 
     [Test]
-    public void IsGameWon_LastRoundPlayed_IsTrue()
+    public void Withdraw_NotEnoughGold_TakesWhatIsLeft()
     {
-        Assert.IsTrue(ScoreRules.IsGameWon(25, 25, new[] { 10, 40 }, 90));
+        Assert.AreEqual(10, ScoreRules.Withdraw(10, 25));
     }
 
     [Test]
-    public void IsGameWon_TargetScoreReached_IsTrue()
+    public void Withdraw_NoGold_TakesNothing()
     {
-        Assert.IsTrue(ScoreRules.IsGameWon(3, 25, new[] { 10, 90 }, 90));
+        Assert.AreEqual(0, ScoreRules.Withdraw(0, 25));
     }
 
     [Test]
-    public void IsGameWon_NoScoresYet_IsFalse()
+    public void Withdraw_NegativeAmount_TakesNothing()
     {
-        Assert.IsFalse(ScoreRules.IsGameWon(0, 25, new int[0], 90));
+        Assert.AreEqual(0, ScoreRules.Withdraw(100, -5));
+    }
+
+    [Test]
+    public void IsSomeoneBroke_EveryoneHasGold_IsFalse()
+    {
+        Assert.IsFalse(ScoreRules.IsSomeoneBroke(new[] { 100, 15, 40 }));
+    }
+
+    [Test]
+    public void IsSomeoneBroke_OnePlayerAtZero_IsTrue()
+    {
+        Assert.IsTrue(ScoreRules.IsSomeoneBroke(new[] { 100, 0, 40 }));
+    }
+
+    [Test]
+    public void IsSomeoneBroke_NoPlayers_IsFalse()
+    {
+        Assert.IsFalse(ScoreRules.IsSomeoneBroke(new int[0]));
     }
 }

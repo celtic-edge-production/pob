@@ -43,4 +43,37 @@ public class BombRulesTests
     {
         Assert.IsFalse(BombRules.IsWithinPassRange(0f, 0f, 3f, 0f, 2f));
     }
+
+    [Test]
+    public void FuseAfterPass_PlentyOfTimeLeft_IsUnchanged()
+    {
+        Assert.AreEqual(30.0, BombRules.FuseAfterPass(30.0, 8.0));
+    }
+
+    [Test]
+    public void FuseAfterPass_AlmostOut_GivesTheMinimum()
+    {
+        Assert.AreEqual(8.0, BombRules.FuseAfterPass(2.0, 8.0));
+    }
+
+    [Test]
+    public void UsesMinimum_OnlyBelowIt()
+    {
+        Assert.IsTrue(BombRules.UsesMinimum(2.0, 8.0));
+        Assert.IsFalse(BombRules.UsesMinimum(8.0, 8.0));
+        Assert.IsFalse(BombRules.UsesMinimum(30.0, 8.0));
+    }
+
+    [Test]
+    public void NextMinimum_ShrinksByTheStep()
+    {
+        Assert.AreEqual(6f, BombRules.NextMinimum(8f, 2f, 3f));
+    }
+
+    [Test]
+    public void NextMinimum_NeverBelowTheLowest()
+    {
+        Assert.AreEqual(3f, BombRules.NextMinimum(4f, 2f, 3f));
+        Assert.AreEqual(3f, BombRules.NextMinimum(3f, 2f, 3f));
+    }
 }

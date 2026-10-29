@@ -30,4 +30,18 @@ public class Spawner : MonoBehaviour
             player.ResetPositionClientRpc(chosenSpawn);
         }
     }
-}
+
+    // Server only: one character back on a random spawn point (out of trap lives).
+    public void Respawn(PlayerCharacter character)
+    {
+        if (spawnPoints.Length == 0)
+        {
+            Debug.LogError("[Spawner] No spawn point.");
+            return;
+        }
+
+        Vector3 spawn = spawnPoints[Random.Range(0, spawnPoints.Length)];
+        spawn.z = character.transform.position.z;
+        character.ResetPositionClientRpc(spawn);
+    }
+}

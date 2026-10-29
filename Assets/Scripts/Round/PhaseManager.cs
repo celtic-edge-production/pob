@@ -4,7 +4,8 @@ using Unity.Netcode;
 using UnityEngine;
 
 // Server only: the whole game, in order, in one coroutine.
-//   start delay → [ phase 1 (traps) → phase 2 (countdown, round) → scoreboard ] × rounds → end phase → lobby
+//   start delay → [ phase 1 (traps) → phase 2 (countdown, one bomb) → scoreboard ] until someone is
+//   broke → end phase → lobby. A sudden death round (tie for the first place) skips phase 1.
 // Every wait is declared below; the other classes only report when something happened
 // (OnPlacementDone, OnRoundEnded, OnScoreboardClosed). The game no longer moves on at the pace
 // of the host's scoreboard animation: a timeout takes over if its end event never comes.
@@ -40,6 +41,8 @@ public class PhaseManager : NetworkBehaviour
     [SerializeField] private float _afterScoreboardDelay = 3f;
     [Tooltip("How long \"not enough players\" stays on screen before going back to the lobby.")]
     [SerializeField] private float _notEnoughPlayersDelay = 5f;
+    [Tooltip("How long \"Sudden death!\" stays on screen before its countdown.")]
+    [SerializeField] private float _suddenDeathMessageTime = 2f;
     // How long the winner is shown: EndPhase's Display Duration (kept there, already set in the scene).
 
     // Replicated so any peer can tell where the game is (debug, UI).
@@ -167,15 +170,28 @@ public class PhaseManager : NetworkBehaviour
         // Left only by "break" when the game is won; every other stop ends the coroutine.
         while (true)
         {
-            // Phase 1: chest, choice and placement of the traps.
-            _placementDone = false;
-            _currentPhase.Value = GamePhase.Phase1;
-            phase1.Begin();
-            yield return new WaitUntil(() => _placementDone || IsGameOver);
-            if (IsGameOver)
-                yield break;
+            // Phase 1: chest, choice and placement of the traps. A sudden death goes straight to
+            // its round, on the traps already placed.
+            if (rounds.IsSuddenDeath)
+            {
+                rounds.Display.ShowMessageClientRpc("Sudden death!");
+                yield return new WaitForSeconds(_suddenDeathMessageTime);
+                if (IsGameOver)
+                    yield break;
 
-            // Phase 2: countdown, then the round runs until one player is left.
+                rounds.Display.HideMessageClientRpc();
+            }
+            else
+            {
+                _placementDone = false;
+                _currentPhase.Value = GamePhase.Phase1;
+                phase1.Begin();
+                yield return new WaitUntil(() => _placementDone || IsGameOver);
+                if (IsGameOver)
+                    yield break;
+            }
+
+            // Phase 2: countdown, then the round runs until the bomb explodes.
             _roundEnded = false;
             _currentPhase.Value = GamePhase.Phase2;
             phase2.Begin();
@@ -280,4 +296,4 @@ public class PhaseManager : NetworkBehaviour
         if (!isDone())
             Debug.LogWarning($"[PhaseManager] No end event for the {step} after {timeout}s, going on.");
     }
-}
+}

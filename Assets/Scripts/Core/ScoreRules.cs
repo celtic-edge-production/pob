@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-// Who wins and when the game ends. Pure, tested in EditMode; ScoreKeeper applies it on the server.
+// The gold of a game: who leads, how much can be taken, when the game ends. Pure, tested in
+// EditMode; ScoreKeeper and GameRoundManager apply it on the server.
 public static class ScoreRules
 {
-    // Every player sharing the best total wins (ties are possible).
+    // Every player sharing the most gold leads (ties are possible: sudden death).
     public static ulong[] ComputeWinnerIds(IReadOnlyDictionary<ulong, int> totals)
     {
         if (totals.Count == 0)
@@ -15,9 +16,15 @@ public static class ScoreRules
         return totals.Where(kv => kv.Value == best).Select(kv => kv.Key).OrderBy(id => id).ToArray();
     }
 
-    // Enough rounds played, or someone reached the target score.
-    public static bool IsGameWon(int roundsPlayed, int maxRounds, IEnumerable<int> totalScores, int maxScore)
+    // What a loss really takes: never more than the player has, never negative.
+    public static int Withdraw(int gold, int amount)
     {
-        return roundsPlayed >= maxRounds || totalScores.Any(score => score >= maxScore);
+        return Math.Max(0, Math.Min(gold, amount));
+    }
+
+    // The game ends as soon as one player has no gold left.
+    public static bool IsSomeoneBroke(IEnumerable<int> golds)
+    {
+        return golds.Any(gold => gold <= 0);
     }
 }

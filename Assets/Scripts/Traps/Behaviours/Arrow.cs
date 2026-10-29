@@ -8,6 +8,9 @@ public class Arrow : NetworkBehaviour
 
     private bool _hasHit;
 
+    // Server only: the player who placed the shooter (set by Shooter when it fires).
+    [System.NonSerialized] public ulong TrapOwnerId;
+
     private void OnTriggerEnter2D(Collider2D collision)
     {
         // Several triggers can fire in the same physics step: only the first one may despawn.
@@ -24,7 +27,7 @@ public class Arrow : NetworkBehaviour
         // player's own machine could reach his character there.
         PlayerCombat player = collision.GetComponentInParent<PlayerCombat>();
         if (player != null)
-            player.KnockOutFrom(transform.position);
+            player.KnockOutFrom(transform.position, TrapOwnerId);
 
         bool hitPlayer = player != null || collision.CompareTag("Player");
 
@@ -39,4 +42,4 @@ public class Arrow : NetworkBehaviour
         var clip = hitPlayer ? _HitPlayerAudioClip : _HitObjectAudioClip;
         AudioSource.PlayClipAtPoint(clip, position);
     }
-}
+}

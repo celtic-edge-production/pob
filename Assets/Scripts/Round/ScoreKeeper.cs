@@ -1,26 +1,23 @@
 using System.Collections.Generic;
-using System.Linq;
 using Unity.Netcode;
 using UnityEngine;
 
-// The scores of a game: this round's lines, every player's total, the rounds played and when the
-// game is won. The server writes, every peer reads (Scoreboard). Lives next to GameRoundManager.
+// The gold of a game: every player's gold, this round's gains and losses, and when the game is
+// over (someone has no gold left). The server writes, every peer reads (Scoreboard).
+// Lives next to GameRoundManager.
 public class ScoreKeeper : NetworkBehaviour
 {
-    [Header("End of the game")]
-    [SerializeField] private int _maxRounds = 25;
-    [SerializeField] private int _maxScore = 90;
+    [Tooltip("The gold every player starts the game with.")]
+    [SerializeField] private int _startingGold = 100;
 
+    // Every player's gold, changed at once by Change(). Kept under its former name: the scoreboard reads it.
     public NetworkVariable<Dictionary<ulong, int>> PlayerTotalScores { get; private set; }
 
-    // This round's lines, every player mixed, in scoring order. NGO replicates the changes.
+    // This round's gains and losses, every player mixed, in order. NGO replicates the changes.
     public NetworkList<ScoreLine> ScoreLines = new();
 
     // The players shown on the scoreboard, in column order (the players of the last round).
     public NetworkList<ulong> PlayerIds = new();
-
-    // Server only.
-    private int _roundsPlayed;
 
     private void Awake()
     {
@@ -29,7 +26,7 @@ public class ScoreKeeper : NetworkBehaviour
 
     #region Server
 
-    // A new round with these players: no lines yet, a total of 0 for a newcomer.
+    // A new round with these players: no lines yet, the starting gold for a newcomer.
     public void BeginRound(IEnumerable<ulong> playerIds)
     {
         ScoreLines.Clear();
@@ -37,35 +34,42 @@ public class ScoreKeeper : NetworkBehaviour
         foreach (ulong playerId in playerIds)
         {
             if (!PlayerTotalScores.Value.ContainsKey(playerId))
-                PlayerTotalScores.Value[playerId] = 0;
+                PlayerTotalScores.Value[playerId] = _startingGold;
         }
 
         MarkTotalsDirty();
     }
 
-    public void AddLine(ulong playerId, int points, string reason)
+    // Takes up to `amount` gold from a player (never below 0). Returns what was really taken.
+    public int Take(ulong playerId, int amount, string reason)
     {
-        ScoreLines.Add(new ScoreLine(playerId, points, reason));
+        int taken = ScoreRules.Withdraw(GoldOf(playerId), amount);
+        Change(playerId, -taken, reason);
+        return taken;
     }
 
-    // The round is over: its lines go into the totals of the players still here, who also become
-    // the scoreboard's columns. Lines of a player who left are dropped.
+    public void Give(ulong playerId, int amount, string reason)
+    {
+        if (amount > 0)
+            Change(playerId, amount, reason);
+    }
+
+    private void Change(ulong playerId, int delta, string reason)
+    {
+        if (!PlayerTotalScores.Value.ContainsKey(playerId))
+            return;
+
+        PlayerTotalScores.Value[playerId] += delta;
+        ScoreLines.Add(new ScoreLine(playerId, delta, reason));
+        MarkTotalsDirty();
+    }
+
+    // The round is over: the players still here become the scoreboard's columns.
     public void CloseRound(IReadOnlyCollection<ulong> playersStillHere)
     {
-        foreach (KeyValuePair<ulong, int> delta in ScoreTally.SumByPlayer(CopyLines()))
-        {
-            if (!playersStillHere.Contains(delta.Key))
-                continue;
-
-            PlayerTotalScores.Value.TryGetValue(delta.Key, out int total);
-            PlayerTotalScores.Value[delta.Key] = total + delta.Value;
-        }
-
         PlayerIds.Clear();
         foreach (ulong playerId in playersStillHere)
             PlayerIds.Add(playerId);
-
-        MarkTotalsDirty();
     }
 
     public void RemovePlayer(ulong playerId)
@@ -74,13 +78,10 @@ public class ScoreKeeper : NetworkBehaviour
         MarkTotalsDirty();
     }
 
-    // One more round played. True when the game is won.
-    public bool CountRoundAndCheckWin()
-    {
-        _roundsPlayed++;
-        return ScoreRules.IsGameWon(_roundsPlayed, _maxRounds, PlayerTotalScores.Value.Values, _maxScore);
-    }
+    // True as soon as one player has no gold left: the game is over (or goes to a sudden death).
+    public bool IsSomeoneBroke() => ScoreRules.IsSomeoneBroke(PlayerTotalScores.Value.Values);
 
+    // The players with the most gold (several on a tie).
     public ulong[] GetWinnerIds() => ScoreRules.ComputeWinnerIds(PlayerTotalScores.Value);
 
     // NGO already detects in-place changes by comparing the dictionary with a copy on every
@@ -94,9 +95,9 @@ public class ScoreKeeper : NetworkBehaviour
 
     #region Every peer
 
-    public int TotalOf(ulong playerId)
+    public int GoldOf(ulong playerId)
     {
-        return PlayerTotalScores.Value.TryGetValue(playerId, out int total) ? total : 0;
+        return PlayerTotalScores.Value.TryGetValue(playerId, out int gold) ? gold : 0;
     }
 
     // One player's lines of this round, in scoring order.
@@ -115,4 +116,4 @@ public class ScoreKeeper : NetworkBehaviour
     }
 
     #endregion
-}
+}

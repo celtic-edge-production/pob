@@ -107,8 +107,8 @@ public class Scoreboard : MonoBehaviour
             PlayerImage[i].GetComponent<Image>().gameObject.SetActive(true);
 
             // Read-only: the scores belong to the server.
-            int total = _GameRoundManager.Scores.TotalOf(playerId);
-            _TotalTextScoreList[i].text = $"{playerId} score : {total}";
+            int gold = _GameRoundManager.Scores.GoldOf(playerId);
+            _TotalTextScoreList[i].text = $"{gold} gold";
         }
     }
 
@@ -117,7 +117,8 @@ public class Scoreboard : MonoBehaviour
         // Set text
         TMP_Text text = _RoundTextScoreList[_PlayerIdInList].GetComponent<TMP_Text>();
         ScoreLine line = _CurrentPlayerScores[_CurrentPlayerRoundScoreIndex];
-        text.text = $"{line.Reason} {line.Points} Points !";
+        string sign = line.Points > 0 ? "+" : "";
+        text.text = $"{line.Reason} {sign}{line.Points} gold";
 
         // Reset the animator state and start the animation
         Animator animator = _RoundTextScoreList[_PlayerIdInList].GetComponent<Animator>();
@@ -188,4 +189,4 @@ public class Scoreboard : MonoBehaviour
     {
         _Animator.SetBool("IsOpening", false);
     }
-}
+}

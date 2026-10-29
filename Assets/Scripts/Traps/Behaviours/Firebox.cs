@@ -24,6 +24,14 @@ public class Firebox : ATrap
         ResetToIdle();
     }
 
+    // The Animator came back with IsIdle at its default (false): without this, the server never
+    // fired again after the first phase 2 (HandleFirebox waits for IsIdle).
+    protected override void OnAnimatorEnabled()
+    {
+        _elapsedTime = 0f;
+        ResetToIdle();
+    }
+
     protected override void FixedUpdate()
     {
         if (!IsActive)
@@ -89,4 +97,4 @@ public class Firebox : ATrap
         if (childFire != null)
             childFire.SetActive(false);
     }
-}
+}

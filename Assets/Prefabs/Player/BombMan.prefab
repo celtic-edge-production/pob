@@ -383,11 +383,11 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   NetworkTransformExpanded: 0
   AutoOwnerAuthorityTickOffset: 1
-  PositionInterpolationType: 0
+  PositionInterpolationType: 1
   RotationInterpolationType: 0
   ScaleInterpolationType: 0
   PositionLerpSmoothing: 1
-  PositionMaxInterpolationTime: 0.1
+  PositionMaxInterpolationTime: 0.05
   RotationLerpSmoothing: 1
   RotationMaxInterpolationTime: 0.1
   ScaleLerpSmoothing: 1
@@ -413,7 +413,7 @@ MonoBehaviour:
   InLocalSpace: 0
   SwitchTransformSpaceWhenParented: 0
   Interpolate: 1
-  SlerpPosition: 1
+  SlerpPosition: 0
 --- !u!114 &5559060474743304354
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -552,6 +552,8 @@ MonoBehaviour:
   _punchForce: 5
   _punchRadius: 1
   _stunIndicator: {fileID: 1074635670087440087}
+  _minFlightTime: 0.15
+  _maxFlightTime: 2.5
   IsKnockedOut:
     m_InternalValue: 0
   IsStunned:

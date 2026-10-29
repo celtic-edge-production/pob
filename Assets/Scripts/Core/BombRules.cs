@@ -9,4 +9,14 @@ public static class BombRules
 
         return currentHolderId != newHolderId;
     }
+
+    // A pass on contact, as the server sees the two players. Each machine sees the others a little
+    // in the past, so the holder can touch a player who has already run away on his own screen:
+    // beyond this distance, the contact is refused.
+    public static bool IsWithinPassRange(float holderX, float holderY, float targetX, float targetY, float maxDistance)
+    {
+        float dx = targetX - holderX;
+        float dy = targetY - holderY;
+        return dx * dx + dy * dy <= maxDistance * maxDistance;
+    }
 }

@@ -193,9 +193,21 @@ public abstract class ATrap : NetworkBehaviour
         if (_previousState == _state)
             return;
 
-        _animator.enabled = (_state & TrapState.Animate) == TrapState.Animate;
+        bool animate = (_state & TrapState.Animate) == TrapState.Animate;
+
+        _animator.enabled = animate;
         _boxCollider.enabled = (_state & TrapState.Collide) == TrapState.Collide;
         _previousState = _state;
+
+        if (animate)
+            OnAnimatorEnabled();
+    }
+
+    // Every peer, each time the trap comes alive again (start of every phase 2). Re-enabling an
+    // Animator puts every parameter back to its default value: a trap that sets parameters in
+    // Awake sets them again here.
+    protected virtual void OnAnimatorEnabled()
+    {
     }
 
     // Server only: plays _actionSound at the trap position on every peer.
@@ -218,4 +230,4 @@ public abstract class ATrap : NetworkBehaviour
         if (_actionSound != null)
             AudioSource.PlayClipAtPoint(_actionSound, position);
     }
-}
+}

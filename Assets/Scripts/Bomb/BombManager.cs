@@ -20,6 +20,9 @@ public class BombManager : NetworkSingleton<BombManager>
     [Tooltip("Base fuse in seconds, divided by (alive players - 1), plus 0 to 5 random seconds.")]
     public float bombTimer = 60f;
 
+    [Tooltip("A pass on contact is refused when the two players are further apart than this on the server.")]
+    [SerializeField] private float _maxPassDistance = 1.5f;
+
     public NetworkVariable<ulong> bombHolderId = new NetworkVariable<ulong>(NoPlayer);
 
     // Server time of the explosion, or NoExplosion between bombs. Sent once per bomb:
@@ -52,7 +55,22 @@ public class BombManager : NetworkSingleton<BombManager>
         if (!RpcValidation.SenderMatches(rpcParams, bombHolderId.Value))
             return;
 
+        if (!AreInPassRange(bombHolderId.Value, newHolderId))
+            return;
+
         AssignBombHolder(newHolderId);
+    }
+
+    private bool AreInPassRange(ulong holderId, ulong targetId)
+    {
+        TransferManager holder = GetBombState(holderId);
+        TransferManager target = GetBombState(targetId);
+        if (holder == null || target == null)
+            return false;
+
+        Vector3 from = holder.transform.position;
+        Vector3 to = target.transform.position;
+        return BombRules.IsWithinPassRange(from.x, from.y, to.x, to.y, _maxPassDistance);
     }
 
     // Server only. Returns true if the bomb actually changed hands.
@@ -204,4 +222,4 @@ public class BombManager : NetworkSingleton<BombManager>
     {
         return bombHolderId.Value == clientId;
     }
-}
+}

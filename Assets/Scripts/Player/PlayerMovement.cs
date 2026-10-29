@@ -28,6 +28,9 @@ public class PlayerMovement : MonoBehaviour
     private bool _isGrounded;
     private Vector2 _moveInput;
 
+    // Reused by IsStandingOnSomething: no allocation per frame.
+    private readonly ContactPoint2D[] _contacts = new ContactPoint2D[8];
+
     public bool IsJumping { get; private set; }
     public bool IsWallJumping { get; private set; }
     public bool IsSliding { get; private set; }
@@ -154,7 +157,7 @@ public class PlayerMovement : MonoBehaviour
             return;
 
         // Flying after a hit: the knockback is left alone, no air control slows it down.
-        if (_combat.IsKnockedOut.Value)
+        if (_combat.IsFlying)
             return;
 
         Run(IsWallJumping ? Data.wallJumpRunLerp : 1);
@@ -203,7 +206,7 @@ public class PlayerMovement : MonoBehaviour
             IsJumping = false;
         }
 
-        if (LastOnGroundTime > 0 && !IsJumping && !IsWallJumping && !_combat.IsKnockedOut.Value && !_combat.IsStunned.Value)
+        if (LastOnGroundTime > 0 && !IsJumping && !IsWallJumping && !_combat.IsDown)
         {
             _isJumpCut = false;
             _isJumpFalling = false;
@@ -414,16 +417,26 @@ public class PlayerMovement : MonoBehaviour
 
     #region Ground contact
 
+    // Owner only (PlayerCombat): resting on something solid, whatever its tag or layer (ground,
+    // a trap, another player). Triggers give no contact.
+    public bool IsStandingOnSomething()
+    {
+        int count = _rigidBody.GetContacts(_contacts);
+        for (int i = 0; i < count; i++)
+        {
+            if (_contacts[i].normal.y > 0.5f)
+                return true;
+        }
+        return false;
+    }
+
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (!collision.gameObject.CompareTag("Ground"))
             return;
 
         if (_isJumpFalling)
-        {
             _animator.SetBool("isFalling", false);
-            _combat.OnLandedAfterFall();
-        }
 
         _isGrounded = true;
         _animator.SetTrigger("land");
@@ -452,4 +465,4 @@ public class PlayerMovement : MonoBehaviour
         Gizmos.DrawWireCube(_backWallCheckPoint.position, _wallCheckSize);
     }
 
-}
+}

@@ -3,12 +3,20 @@ using UnityEngine;
 
 // Punches, knock-outs (punch or trap) and the stun that follows the landing.
 // A knocked-out character flies until it lands, then stays stunned for Data.stunTime.
+// The owner runs the physics, so the owner decides the landing and the end of the stun with its
+// own state (_isFlying, _isStunnedHere), without waiting for the replicated copies: a landing
+// before IsKnockedOut came back from the server used to leave the character knocked out forever.
 [RequireComponent(typeof(PlayerCharacter), typeof(PlayerMovement))]
 public class PlayerCombat : NetworkBehaviour
 {
     [SerializeField] private float _punchForce = 5f;
     [SerializeField] private float _punchRadius = 1.0f;
     [SerializeField] private GameObject _stunIndicator;
+
+    [Tooltip("A knock-out lasts at least this long, so the landing check cannot end it on the frame of the hit.")]
+    [SerializeField] private float _minFlightTime = 0.15f;
+    [Tooltip("Safety net: a knock-out never lasts longer than this, whatever the character landed on.")]
+    [SerializeField] private float _maxFlightTime = 2.5f;
 
     // Flying after a hit (formerly isStunHit), then stunned on the ground (formerly isStun).
     public NetworkVariable<bool> IsKnockedOut = new NetworkVariable<bool>(false);
@@ -19,8 +27,18 @@ public class PlayerCombat : NetworkBehaviour
     private Rigidbody2D _rigidBody;
     private Animator _animator;
 
-    // Owner only.
+    // Owner only: the knock-out and the stun as this machine decided them.
+    private bool _isFlying;
+    private float _flightTime;
+    private bool _isStunnedHere;
     private float _stunTimeLeft;
+
+    // Owner only (PlayerMovement): flying after a hit, no air control.
+    public bool IsFlying => _isFlying;
+
+    // Knocked out or stunned. Every peer reads the replicated state; the owner also knows it
+    // before the server has answered.
+    public bool IsDown => IsKnockedOut.Value || IsStunned.Value || (IsOwner && (_isFlying || _isStunnedHere));
 
     private PlayerMovementData Data => _movement.Data;
 
@@ -48,16 +66,48 @@ public class PlayerCombat : NetworkBehaviour
         if (_stunIndicator != null && _stunIndicator.activeSelf != IsStunned.Value)
             _stunIndicator.SetActive(IsStunned.Value);
 
-        if (!IsOwner || !IsStunned.Value)
+        if (!IsOwner)
             return;
 
+        if (_isFlying)
+            UpdateFlight();
+        else if (_isStunnedHere)
+            UpdateStun();
+    }
+
+    // Owner only. Landed on anything solid (ground, a trap, another player), or flying for too
+    // long: the knock-out becomes a stun. It used to wait for a collision with
+    // the "Ground" tag, so a character landing on a trap stayed knocked out for good.
+    private void UpdateFlight()
+    {
+        _flightTime += Time.deltaTime;
+        if (_flightTime < _minFlightTime)
+            return;
+
+        if (_movement.IsStandingOnSomething() || _flightTime >= _maxFlightTime)
+            Land();
+    }
+
+    private void Land()
+    {
+        _isFlying = false;
+        _isStunnedHere = true;
+        _stunTimeLeft = Data.stunTime;
+        _animator.ResetTrigger("isHit");
+
+        SetKnockedOutServerRpc(false);
+        SetStunnedServerRpc(true);
+    }
+
+    private void UpdateStun()
+    {
         _stunTimeLeft -= Time.deltaTime;
-        if (_stunTimeLeft <= 0f)
-        {
-            _stunTimeLeft = 0f;
-            SetKnockedOutServerRpc(false);
-            SetStunnedServerRpc(false);
-        }
+        if (_stunTimeLeft > 0f)
+            return;
+
+        _stunTimeLeft = 0f;
+        _isStunnedHere = false;
+        SetStunnedServerRpc(false);
     }
 
     #region Punch
@@ -175,26 +225,39 @@ public class PlayerCombat : NetworkBehaviour
     // Owner only: the force goes where the physics is authoritative (NetworkTransform with owner authority).
     private void KnockOut(Vector2 force)
     {
+        // Already down here, even if the server has not heard of it yet: a second trap touched
+        // during the flight does nothing.
+        if (_isFlying || _isStunnedHere)
+            return;
+
+        _isFlying = true;
+        _flightTime = 0f;
+
         _rigidBody.AddForce(force, ForceMode2D.Impulse);
         _animator.SetTrigger("isHit");
         _movement.OnKnockedOut();
         SetKnockedOutServerRpc(true);
     }
 
-    // Every peer (physics runs everywhere), from PlayerMovement when a fall ends on the ground.
-    public void OnLandedAfterFall()
+    // Server only (TransferManager.Revive): every new round starts on its feet.
+    public void ResetState()
     {
-        if (!IsKnockedOut.Value)
+        if (!IsServer)
             return;
 
-        _animator.ResetTrigger("isHit");
+        IsKnockedOut.Value = false;
+        IsStunned.Value = false;
+        ApplyStunClientRpc(false);
+        ClearStateOwnerRpc();
+    }
 
-        // Only the owner turns the knock-out into a stun.
-        if (IsOwner)
-        {
-            SetKnockedOutServerRpc(false);
-            SetStunnedServerRpc(true);
-        }
+    [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
+    private void ClearStateOwnerRpc()
+    {
+        _isFlying = false;
+        _isStunnedHere = false;
+        _stunTimeLeft = 0f;
+        _animator.ResetTrigger("isHit");
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
@@ -210,13 +273,12 @@ public class PlayerCombat : NetworkBehaviour
         ApplyStunClientRpc(stunned);
     }
 
-    // The stun indicator itself follows IsStunned in Update.
+    // The stun indicator itself follows IsStunned in Update, the stun time is counted by the owner.
     [Rpc(SendTo.ClientsAndHost, InvokePermission = RpcInvokePermission.Server)]
     private void ApplyStunClientRpc(bool stunned)
     {
         if (stunned)
         {
-            _stunTimeLeft = Data.stunTime;
             _rigidBody.linearVelocity = new Vector2(0, _rigidBody.linearVelocity.y);
             _rigidBody.constraints = RigidbodyConstraints2D.FreezePositionX | RigidbodyConstraints2D.FreezeRotation;
         }
@@ -235,4 +297,4 @@ public class PlayerCombat : NetworkBehaviour
         Gizmos.DrawWireSphere(transform.position, _punchRadius);
     }
 
-}
+}

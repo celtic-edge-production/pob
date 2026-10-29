@@ -64,6 +64,10 @@ public class TransferManager : NetworkBehaviour
         InvincibleUntil.Value = 0;
         HasBomb.Value = false;
         ReviveClientRpc();
+
+        // A player still knocked out or stunned at the end of the round starts the next one on his feet.
+        if (TryGetComponent(out PlayerCombat combat))
+            combat.ResetState();
     }
 
     // Server only: called when this player passes the bomb on.
@@ -197,4 +201,4 @@ public class TransferManager : NetworkBehaviour
 
     #endregion
 
-}
+}

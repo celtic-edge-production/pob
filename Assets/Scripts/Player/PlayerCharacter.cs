@@ -190,8 +190,7 @@ public class PlayerCharacter : NetworkBehaviour
     // shows the character at the same time, the rest is replicated: valid on every peer.
     public bool CanAct()
     {
-        return _hideable.IsVisible && _bomb.IsAlive.Value
-            && !_combat.IsStunned.Value && !_combat.IsKnockedOut.Value;
+        return _hideable.IsVisible && _bomb.IsAlive.Value && !_combat.IsDown;
     }
 
     // Every peer. Hidden during phase 1: no sprite, no collision, no physics, no input.
@@ -239,4 +238,4 @@ public class PlayerCharacter : NetworkBehaviour
     }
 
     #endregion
-}
+}

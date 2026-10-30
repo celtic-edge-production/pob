@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Every peer: an arrow on the screen edge for each other player out of sight, pointing at him and
-// sliding along the edges as he moves. No portrait: the arrow takes the player's colour (the
-// cursor colours), and the bomb holder's arrow is larger and in its own colour.
+// The bomb holder's help to find his next victim: on his screen only, an arrow on the screen edge
+// for each other player out of sight, pointing at him and sliding along the edges as he moves.
+// No portrait: the arrow takes the player's colour (the cursor colours).
 // Put it on the HUD canvas, with a disabled arrow image as the template (its sprite points right).
 public class OffscreenIndicators : MonoBehaviour
 {
@@ -13,11 +13,8 @@ public class OffscreenIndicators : MonoBehaviour
     [Tooltip("Distance from the screen edge, as a fraction of the screen (0.05 = 5 %).")]
     [SerializeField] private float _edgeMargin = 0.05f;
 
-    [Header("Colours")]
     [Tooltip("Tint each arrow with its player's colour. Off: every arrow keeps the template's colour.")]
     [SerializeField] private bool _usePlayerColours = true;
-    [SerializeField] private Color _bombHolderColor = new Color(1f, 0.35f, 0.1f, 1f);
-    [SerializeField] private float _bombHolderScale = 1.4f;
 
     private Canvas _canvas;
     // The arrows are created next to the template, and placed in its parent's space.
@@ -46,25 +43,25 @@ public class OffscreenIndicators : MonoBehaviour
 
         PlayerCharacter local = Players.Local != null ? Players.Local.Character : null;
         Camera view = ViewOf(local);
-        bool inPlay = local != null && local.IsVisible && view != null;
+        // Only while this machine's player holds the bomb.
+        bool isHunting = local != null && local.IsVisible && view != null
+            && local.TryGetComponent(out PlayerBomb localBomb) && localBomb.IsBombHolder();
 
         _shownThisFrame.Clear();
 
-        if (inPlay)
+        if (isHunting)
         {
-            ulong holder = BombManager.Instance != null ? BombManager.Instance.bombHolderId.Value : BombManager.NoPlayer;
-
             foreach (PlayerCharacter character in Players.Characters)
             {
                 if (character == local || !IsInPlay(character))
                     continue;
 
-                if (TryPlace(character, view, holder))
+                if (TryPlace(character, view))
                     _shownThisFrame.Add(character.OwnerClientId);
             }
         }
 
-        // Every arrow not placed this frame is hidden (player on screen, dead, left, phase 1).
+        // Every arrow not placed this frame is hidden (not the holder, player on screen, dead, left, phase 1).
         foreach (KeyValuePair<ulong, RectTransform> arrow in _arrows)
         {
             bool show = _shownThisFrame.Contains(arrow.Key);
@@ -74,7 +71,7 @@ public class OffscreenIndicators : MonoBehaviour
     }
 
     // Returns false when the player is on screen (no arrow needed).
-    private bool TryPlace(PlayerCharacter character, Camera view, ulong holderId)
+    private bool TryPlace(PlayerCharacter character, Camera view)
     {
         Vector3 viewport = view.WorldToViewportPoint(character.transform.position);
         bool isBehind = viewport.z < 0f;
@@ -94,11 +91,8 @@ public class OffscreenIndicators : MonoBehaviour
         arrow.localPosition = local;
         arrow.localRotation = Quaternion.Euler(0f, 0f, angle);
 
-        bool isHolder = character.OwnerClientId == holderId;
-        arrow.localScale = Vector3.one * (isHolder ? _bombHolderScale : 1f);
-
-        if (arrow.TryGetComponent(out Image image))
-            image.color = isHolder ? _bombHolderColor : ColourOf(character.OwnerClientId);
+        if (_usePlayerColours && arrow.TryGetComponent(out Image image))
+            image.color = Utils.ColorTools.GetColorByID((int)character.OwnerClientId + 1); // as the cursors (SetupPlayer: id + 1)
 
         return true;
     }
@@ -112,12 +106,6 @@ public class OffscreenIndicators : MonoBehaviour
         arrow.name = $"OffscreenArrow {playerId}";
         _arrows[playerId] = arrow;
         return arrow;
-    }
-
-    private Color ColourOf(ulong playerId)
-    {
-        // Same rule as the cursors (SetupPlayer: player id = client id + 1).
-        return _usePlayerColours ? Utils.ColorTools.GetColorByID((int)playerId + 1) : _arrowTemplate.GetComponent<Image>().color;
     }
 
     private static bool IsInPlay(PlayerCharacter character)

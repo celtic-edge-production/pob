@@ -372,7 +372,9 @@ public class PlayerMovement : MonoBehaviour
 
     private void Run(float lerpAmount)
     {
-        float targetSpeed = _moveInput.x * Data.runMaxSpeed;
+        // The bomb holder runs faster: he has to catch someone.
+        float maxSpeed = Data.runMaxSpeed * (_bomb.IsBombHolder() ? Data.bombHolderSpeedMultiplier : 1f);
+        float targetSpeed = _moveInput.x * maxSpeed;
         // Lerp smooths changes of direction and speed.
         targetSpeed = Mathf.Lerp(_rigidBody.linearVelocity.x, targetSpeed, lerpAmount);
 

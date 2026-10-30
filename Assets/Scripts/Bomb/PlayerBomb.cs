@@ -76,6 +76,12 @@ public class PlayerBomb : NetworkBehaviour
         InvincibleUntil.Value = NetworkManager.ServerTime.Time + invincibilityTime;
     }
 
+    // Every peer: this character's player holds the bomb (in hand or thrown), from the replicated holder.
+    public bool IsBombHolder()
+    {
+        return BombManager.Instance != null && BombManager.Instance.IsBombHolder(OwnerClientId);
+    }
+
     public bool IsPlayerInvincible()
     {
         return NetworkManager != null && NetworkManager.ServerTime.Time < InvincibleUntil.Value;

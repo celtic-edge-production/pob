@@ -30,6 +30,8 @@ public class PlayerMovementData : ScriptableObject
     [Range(0f, 1)] public float deccelInAir;
     [Space(5)]
     public bool doConserveMomentum = true;
+    [Tooltip("Max run speed of the bomb holder, as a multiplier (1.15 = 15 % faster than the others).")]
+    public float bombHolderSpeedMultiplier = 1.15f;
 
     [Space(20)]
 
